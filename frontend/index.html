@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NSE AI — Nairobi Stock Intelligence</title>
+  <meta name="description" content="AI-powered investment intelligence for the Nairobi Securities Exchange. Real-time signals, news sentiment, and smart recommendations." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- ── NAV ─────────────────────────────────────────────── -->
+  <nav class="nav" id="main-nav">
+    <div class="nav-brand">
+      <div class="nav-logo">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <path d="M4 20L10 12L14 16L19 8L24 14" stroke="#00e5a0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="24" cy="14" r="2.5" fill="#00e5a0"/>
+        </svg>
+      </div>
+      <span class="nav-title">NSE <span class="accent">AI</span></span>
+    </div>
+    <div class="nav-links">
+      <a href="index.html" class="nav-link active" id="nav-dashboard">Dashboard</a>
+      <a href="news.html"  class="nav-link" id="nav-news">News</a>
+      <a href="stocks.html" class="nav-link" id="nav-stocks">All Stocks</a>
+    </div>
+    <div class="nav-meta">
+      <div class="live-indicator"><span class="live-dot"></span>LIVE</div>
+      <div class="nav-time" id="nav-time">--:--:-- EAT</div>
+    </div>
+  </nav>
+
+  <!-- ── TICKER TAPE ────────────────────────────────────── -->
+  <div class="ticker-wrap">
+    <div class="ticker-tape" id="ticker-tape">
+      <div class="ticker-loading">Loading market data…</div>
+    </div>
+  </div>
+
+  <!-- ── ALERTS BANNER ─────────────────────────────────── -->
+  <div class="alerts-banner" id="alerts-banner" style="display:none">
+    <div class="alerts-banner-inner">
+      <span class="alerts-icon">⚡</span>
+      <span class="alerts-label">STRONG SIGNAL</span>
+      <span class="alerts-text" id="alerts-text"></span>
+    </div>
+    <button class="alerts-close" onclick="document.getElementById('alerts-banner').style.display='none'">✕</button>
+  </div>
+
+  <!-- ── MAIN ──────────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- Market Overview -->
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">Market Overview</h2>
+        <span class="section-sub" id="market-date">NSE • Nairobi, Kenya</span>
+      </div>
+      <div class="overview-grid" id="overview-grid">
+        <div class="overview-card skeleton"></div>
+        <div class="overview-card skeleton"></div>
+        <div class="overview-card skeleton"></div>
+        <div class="overview-card skeleton"></div>
+      </div>
+    </section>
+
+    <!-- AI Recommendations -->
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">
+          <span class="ai-badge">AI</span> Recommendations
+        </h2>
+        <span class="section-sub">High-confidence signals only · Threshold: 72%</span>
+      </div>
+      <div class="recs-grid" id="recs-grid">
+        <div class="rec-card skeleton"></div>
+        <div class="rec-card skeleton"></div>
+        <div class="rec-card skeleton"></div>
+      </div>
+      <div class="no-signal-notice" id="no-signal-notice" style="display:none">
+        <div class="no-signal-icon">🔍</div>
+        <div class="no-signal-text">No high-confidence signals right now</div>
+        <div class="no-signal-sub">The AI stays silent when unsure. This is intentional.</div>
+      </div>
+    </section>
+
+    <!-- Live Chart + Stock Spotlight -->
+    <section class="section two-col">
+      <div class="chart-panel">
+        <div class="section-header">
+          <h2 class="section-title">Price Chart</h2>
+          <div class="chart-controls">
+            <select class="chart-select" id="chart-ticker-select">
+              <option value="SCOM">Safaricom (SCOM)</option>
+              <option value="EQTY">Equity Group (EQTY)</option>
+              <option value="KCB">KCB Group (KCB)</option>
+              <option value="COOP">Co-op Bank (COOP)</option>
+              <option value="EABL">EABL (EABL)</option>
+              <option value="BAT">BAT Kenya (BAT)</option>
+              <option value="ABSA">Absa Bank (ABSA)</option>
+              <option value="NCBA">NCBA Group (NCBA)</option>
+            </select>
+            <div class="period-tabs">
+              <button class="period-btn active" data-period="1mo">1M</button>
+              <button class="period-btn" data-period="3mo">3M</button>
+              <button class="period-btn" data-period="6mo">6M</button>
+              <button class="period-btn" data-period="1y">1Y</button>
+            </div>
+          </div>
+        </div>
+        <div id="main-chart" class="chart-container"></div>
+      </div>
+
+      <div class="spotlight-panel">
+        <div class="section-header">
+          <h2 class="section-title">AI Signal</h2>
+        </div>
+        <div class="signal-card" id="signal-card">
+          <div class="signal-loading">Analysing…</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Latest News -->
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">Market News</h2>
+        <a href="news.html" class="see-all-link">See all →</a>
+      </div>
+      <div class="news-grid" id="news-grid">
+        <div class="news-card skeleton"></div>
+        <div class="news-card skeleton"></div>
+        <div class="news-card skeleton"></div>
+        <div class="news-card skeleton"></div>
+      </div>
+    </section>
+
+    <!-- All Stocks Table -->
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">All NSE Stocks</h2>
+        <input class="search-input" id="stock-search" placeholder="🔍  Search ticker or name…" />
+      </div>
+      <div class="table-wrap">
+        <table class="stocks-table" id="stocks-table">
+          <thead>
+            <tr>
+              <th>Ticker</th><th>Company</th><th>Sector</th>
+              <th>Price (KES)</th><th>Change</th><th>Volume</th><th>Signal</th>
+            </tr>
+          </thead>
+          <tbody id="stocks-tbody">
+            <tr><td colspan="7" class="table-loading">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ── FOOTER ─────────────────────────────────────────── -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-brand">NSE <span class="accent">AI</span> — Nairobi Stock Intelligence</div>
+      <div class="footer-disclaimer">
+        ⚠️ AI signals are for informational purposes only and do not constitute financial advice.
+        Always conduct your own research before investing.
+      </div>
+      <div class="footer-meta">© 2025 NSE AI Platform · Built for Kenyan Investors</div>
+    </div>
+  </footer>
+
+  <script src="js/api.js"></script>
+  <script src="js/chart.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+version: '3.8'
+services:
+  db:
+    image: timescale/timescaledb:latest-pg15
+    container_name: nse_db
+    environment:
+      POSTGRES_USER:     nse_user
+      POSTGRES_PASSWORD: nse_pass
+      POSTGRES_DB:       nse_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - nse_pg_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+volumes:
+  nse_pg_data:

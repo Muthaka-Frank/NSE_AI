@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Market News — NSE AI</title>
+  <meta name="description" content="Real-time Kenyan financial news with AI sentiment analysis for NSE stocks." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .news-page-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 18px;
+    }
+    .news-full-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 22px;
+      display: flex; flex-direction: column; gap: 12px;
+      transition: var(--transition);
+    }
+    .news-full-card:hover { border-color: var(--border-light); transform: translateY(-2px); box-shadow: var(--shadow); }
+    .news-summary { font-size: 13px; color: var(--text-secondary); line-height: 1.65; }
+    .news-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+    .filter-btn {
+      padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+      border: 1px solid var(--border); color: var(--text-secondary);
+      background: var(--bg-surface); transition: var(--transition); cursor: pointer;
+    }
+    .filter-btn:hover, .filter-btn.active {
+      border-color: var(--accent); color: var(--accent); background: var(--accent-glow2);
+    }
+    .sentiment-score-bar { height: 4px; border-radius: 2px; margin-top: 4px; }
+    .sentiment-score-bar.POSITIVE { background: linear-gradient(90deg, var(--accent-dim), var(--accent)); }
+    .sentiment-score-bar.NEGATIVE { background: linear-gradient(90deg, var(--red-dim), var(--red)); }
+    .sentiment-score-bar.NEUTRAL  { background: var(--border-light); }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-brand">
+      <div class="nav-logo">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <path d="M4 20L10 12L14 16L19 8L24 14" stroke="#00e5a0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="24" cy="14" r="2.5" fill="#00e5a0"/>
+        </svg>
+      </div>
+      <span class="nav-title">NSE <span class="accent">AI</span></span>
+    </div>
+    <div class="nav-links">
+      <a href="index.html" class="nav-link">Dashboard</a>
+      <a href="news.html"  class="nav-link active">News</a>
+      <a href="stocks.html" class="nav-link">All Stocks</a>
+    </div>
+    <div class="nav-meta">
+      <div class="live-indicator"><span class="live-dot"></span>LIVE</div>
+      <div class="nav-time" id="nav-time">--:--:-- EAT</div>
+    </div>
+  </nav>
+
+  <main class="main">
+    <section class="section">
+      <div class="section-header">
+        <h1 class="section-title">Market News <span class="ai-badge">AI SENTIMENT</span></h1>
+      </div>
+
+      <div class="news-filters" id="news-filters">
+        <button class="filter-btn active" data-filter="ALL">All</button>
+        <button class="filter-btn" data-filter="POSITIVE">🟢 Positive</button>
+        <button class="filter-btn" data-filter="NEGATIVE">🔴 Negative</button>
+        <button class="filter-btn" data-filter="NEUTRAL">⚪ Neutral</button>
+        <button class="filter-btn" data-filter="SCOM">Safaricom</button>
+        <button class="filter-btn" data-filter="EQTY">Equity</button>
+        <button class="filter-btn" data-filter="KCB">KCB</button>
+        <button class="filter-btn" data-filter="EABL">EABL</button>
+      </div>
+
+      <div class="news-page-grid" id="news-page-grid">
+        <div class="news-full-card skeleton"></div>
+        <div class="news-full-card skeleton"></div>
+        <div class="news-full-card skeleton"></div>
+        <div class="news-full-card skeleton"></div>
+        <div class="news-full-card skeleton"></div>
+        <div class="news-full-card skeleton"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-brand">NSE <span class="accent">AI</span> — Nairobi Stock Intelligence</div>
+      <div class="footer-disclaimer">⚠️ AI signals are for informational purposes only and do not constitute financial advice.</div>
+      <div class="footer-meta">© 2025 NSE AI Platform · Built for Kenyan Investors</div>
+    </div>
+  </footer>
+
+  <script src="js/api.js"></script>
+  <script>
+    let allArticles = [];
+    let activeFilter = 'ALL';
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Clock
+      const tick = () => {
+        document.getElementById('nav-time').textContent =
+          new Date().toLocaleTimeString('en-KE', { timeZone:'Africa/Nairobi', hour12:false }) + ' EAT';
+      };
+      tick(); setInterval(tick, 1000);
+
+      // News
+      const data = await api.getNews();
+      allArticles = data?.articles || MOCK.news;
+      renderNews(allArticles);
+
+      // Filters
+      document.getElementById('news-filters').addEventListener('click', e => {
+        const btn = e.target.closest('.filter-btn');
+        if (!btn) return;
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeFilter = btn.dataset.filter;
+        applyFilter();
+      });
+    });
+
+    function applyFilter() {
+      let filtered = allArticles;
+      if (activeFilter === 'POSITIVE') filtered = allArticles.filter(a => a.sentiment?.label === 'POSITIVE');
+      else if (activeFilter === 'NEGATIVE') filtered = allArticles.filter(a => a.sentiment?.label === 'NEGATIVE');
+      else if (activeFilter === 'NEUTRAL') filtered = allArticles.filter(a => a.sentiment?.label === 'NEUTRAL');
+      else if (activeFilter !== 'ALL') filtered = allArticles.filter(a => (a.related_tickers||[]).includes(activeFilter));
+      renderNews(filtered);
+    }
+
+    function renderNews(articles) {
+      const grid = document.getElementById('news-page-grid');
+      if (articles.length === 0) {
+        grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--text-muted)">No articles match this filter.</div>';
+        return;
+      }
+      grid.innerHTML = articles.map(a => {
+        const sent = a.sentiment || { label:'NEUTRAL', score:0.5, score_pct:'50%' };
+        const width = Math.round((sent.score || 0.5) * 100);
+        return `
+          <div class="news-full-card">
+            <div class="news-source-row">
+              <span class="news-source">${a.source}</span>
+              <span class="sentiment-badge ${sent.label}">${sent.label} · ${sent.score_pct}</span>
+            </div>
+            <div class="sentiment-score-bar ${sent.label}" style="width:${width}%"></div>
+            <a href="${a.url}" target="_blank" rel="noopener" class="news-title" style="font-size:15px">${a.title}</a>
+            ${a.summary ? `<div class="news-summary">${a.summary}</div>` : ''}
+            <div class="news-meta">
+              <span>${a.published}</span>
+              <div class="news-tickers">
+                ${(a.related_tickers||[]).map(t => `<span class="news-ticker-chip">${t}</span>`).join('')}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  </script>
+</body>
+</html>
