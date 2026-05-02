@@ -1,8 +1,11 @@
 """NSE AI Platform — Stocks Router"""
+import asyncio
+import json
+from datetime import datetime
 from fastapi import APIRouter, HTTPException
-from data.fetcher import get_stock_info, get_all_stocks, get_historical_data, NSE_STOCKS
+from fastapi.responses import StreamingResponse
+from data.fetcher import get_stock_info, get_all_stocks, get_historical_data, NSE_STOCKS, clear_cache
 from ml.predictor import predict
-from ml.sentiment import analyse
 
 router = APIRouter(prefix="/api/stocks", tags=["Stocks"])
 
@@ -11,6 +14,39 @@ router = APIRouter(prefix="/api/stocks", tags=["Stocks"])
 def list_stocks():
     """Return all NSE stocks with current prices."""
     return {"stocks": get_all_stocks(), "count": len(NSE_STOCKS)}
+
+
+@router.get("/stream")
+async def stream_stocks():
+    """
+    Server-Sent Events — pushes live stock updates every 30 seconds.
+    Connect with: new EventSource('http://localhost:8000/api/stocks/stream')
+    """
+    async def generator():
+        while True:
+            try:
+                clear_cache()  # Always fetch fresh from Yahoo Finance
+                stocks  = get_all_stocks()
+                payload = json.dumps({
+                    "type":      "stocks_update",
+                    "stocks":    stocks,
+                    "count":     len(stocks),
+                    "timestamp": datetime.now().isoformat(),
+                })
+                yield f"data: {payload}\n\n"
+            except Exception as e:
+                yield f"data: {json.dumps({'type':'error','message':str(e)})}\n\n"
+            await asyncio.sleep(30)
+
+    return StreamingResponse(
+        generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control":     "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection":        "keep-alive",
+        },
+    )
 
 
 @router.get("/{ticker}")
@@ -43,8 +79,8 @@ def stock_prediction(ticker: str):
     info = get_stock_info(ticker.upper())
     if not info:
         raise HTTPException(status_code=404, detail=f"Ticker '{ticker}' not found.")
-    history   = get_historical_data(ticker.upper(), "3mo")
-    result    = predict(ticker.upper(), history)
+    history = get_historical_data(ticker.upper(), "3mo")
+    result  = predict(ticker.upper(), history)
     return {
         "ticker":          result.ticker,
         "direction":       result.direction,
@@ -57,3 +93,4 @@ def stock_prediction(ticker: str):
         "current_price":   info["price"],
         "disclaimer":      "AI signals are informational only. Not financial advice.",
     }
+

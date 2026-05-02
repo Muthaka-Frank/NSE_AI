@@ -24,8 +24,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadSignal(currentTicker);
   bindChartControls();
   bindTableSearch();
-  setInterval(loadTicker, 60_000);
-  setInterval(loadNews,   120_000);
+  startLiveUpdates();          // SSE real-time prices
+  setInterval(loadNews, 120_000);
 });
 
 // ── Clock ─────────────────────────────────────────────────────────────────
@@ -265,15 +265,17 @@ function renderTable(stocks) {
   tbody.innerHTML = stocks.map(s => {
     const up = s.change_pct >= 0;
     return `
-      <tr onclick="jumpToStock('${s.ticker}')">
+      <tr onclick="jumpToStock('${s.ticker}')" data-ticker="${s.ticker}">
         <td class="table-ticker">${s.ticker}</td>
         <td>${s.name}</td>
         <td>${s.sector}</td>
-        <td class="table-price">KES ${s.price.toFixed(2)}</td>
-        <td class="${up ? 'change-up' : 'change-down'}">
+        <td class="table-price" id="price-${s.ticker}" data-value="${s.price}">
+          KES ${s.price.toFixed(2)}
+        </td>
+        <td class="${up ? 'change-up' : 'change-down'}" id="change-${s.ticker}">
           ${up ? '▲' : '▼'} ${Math.abs(s.change_pct).toFixed(2)}%
         </td>
-        <td class="table-volume">${formatVolume(s.volume)}</td>
+        <td class="table-volume" id="vol-${s.ticker}">${formatVolume(s.volume)}</td>
         <td><span class="signal-pill NO_SIGNAL" id="sig-${s.ticker}">…</span></td>
       </tr>
     `;
@@ -332,4 +334,119 @@ function formatDate(dateStr) {
     if (isNaN(d)) return dateStr;
     return d.toLocaleDateString('en-KE', { day:'numeric', month:'short' });
   } catch { return dateStr; }
+}
+
+// ── Real-time Live Updates (SSE) ─────────────────────────────────────
+let _sse = null;
+let _sseFails = 0;
+
+function startLiveUpdates() {
+  _setBadge('connecting');
+  _sse = new EventSource('http://localhost:8000/api/stocks/stream');
+
+  _sse.onopen = () => {
+    _sseFails = 0;
+    _setBadge('live');
+  };
+
+  _sse.onmessage = (event) => {
+    try {
+      const payload = JSON.parse(event.data);
+      if (payload.type === 'stocks_update' && payload.stocks) {
+        allStocks = payload.stocks;
+        updatePricesInPlace(payload.stocks);
+        _setBadge('live', payload.timestamp);
+      }
+    } catch (_) {}
+  };
+
+  _sse.onerror = () => {
+    _sseFails++;
+    _setBadge('offline');
+    _sse.close();
+    // Exponential back-off: 10s, 20s, 40s … max 5 min
+    const delay = Math.min(300_000, 10_000 * Math.pow(2, _sseFails - 1));
+    setTimeout(startLiveUpdates, delay);
+  };
+}
+
+function updatePricesInPlace(stocks) {
+  stocks.forEach(s => {
+    const priceEl  = document.getElementById(`price-${s.ticker}`);
+    const changeEl = document.getElementById(`change-${s.ticker}`);
+    const volEl    = document.getElementById(`vol-${s.ticker}`);
+    if (!priceEl) return;
+
+    const oldPrice = parseFloat(priceEl.dataset.value || '0');
+    const newPrice = s.price;
+
+    // Flash only when price actually changed
+    if (oldPrice !== 0 && oldPrice !== newPrice) {
+      const cls = newPrice > oldPrice ? 'flash-up' : 'flash-down';
+      priceEl.classList.remove('flash-up', 'flash-down');
+      void priceEl.offsetWidth;  // force reflow
+      priceEl.classList.add(cls);
+    }
+
+    priceEl.textContent    = `KES ${newPrice.toFixed(2)}`;
+    priceEl.dataset.value  = newPrice;
+
+    if (changeEl) {
+      const up = s.change_pct >= 0;
+      changeEl.className   = up ? 'change-up' : 'change-down';
+      changeEl.textContent = `${up ? '▲' : '▼'} ${Math.abs(s.change_pct).toFixed(2)}%`;
+    }
+    if (volEl) volEl.textContent = formatVolume(s.volume);
+  });
+
+  // Also refresh ticker tape and overview
+  renderTicker(stocks);
+  _refreshOverviewInPlace(stocks);
+}
+
+function _refreshOverviewInPlace(stocks) {
+  const gainers   = stocks.filter(s => s.change_pct > 0).length;
+  const losers    = stocks.filter(s => s.change_pct < 0).length;
+  const avgChg    = stocks.reduce((a, s) => a + s.change_pct, 0) / stocks.length;
+  const topGainer = [...stocks].sort((a, b) => b.change_pct - a.change_pct)[0];
+  const topLoser  = [...stocks].sort((a, b) => a.change_pct - b.change_pct)[0];
+  // Re-render the overview grid (it's fast and stateless)
+  const grid = document.getElementById('overview-grid');
+  if (!grid) return;
+  grid.innerHTML = `
+    <div class="overview-card">
+      <div class="overview-label">Market Sentiment</div>
+      <div class="overview-value ${avgChg >= 0 ? 'up' : 'down'}">${avgChg >= 0 ? 'BULLISH' : 'BEARISH'}</div>
+      <div class="overview-change ${avgChg >= 0 ? 'up' : 'down'}">Avg ${avgChg >= 0 ? '+' : ''}${avgChg.toFixed(2)}% today</div>
+    </div>
+    <div class="overview-card">
+      <div class="overview-label">Gainers / Losers</div>
+      <div class="overview-value up">${gainers}</div>
+      <div class="overview-change down">↓ ${losers} stocks falling</div>
+    </div>
+    <div class="overview-card" onclick="jumpToStock('${topGainer.ticker}')" style="cursor:pointer">
+      <div class="overview-label">Top Gainer</div>
+      <div class="overview-value up">${topGainer.ticker}</div>
+      <div class="overview-change up">▲ +${topGainer.change_pct.toFixed(2)}% · KES ${topGainer.price.toFixed(2)}</div>
+    </div>
+    <div class="overview-card" onclick="jumpToStock('${topLoser.ticker}')" style="cursor:pointer">
+      <div class="overview-label">Top Loser</div>
+      <div class="overview-value down">${topLoser.ticker}</div>
+      <div class="overview-change down">▼ ${topLoser.change_pct.toFixed(2)}% · KES ${topLoser.price.toFixed(2)}</div>
+    </div>
+  `;
+}
+
+function _setBadge(state, timestamp) {
+  const badge = document.getElementById('live-update-badge');
+  if (!badge) return;
+  badge.className = `live-badge ${state === 'live' ? '' : state}`;
+  if (state === 'live') {
+    const t = timestamp ? new Date(timestamp).toLocaleTimeString('en-KE', { timeZone:'Africa/Nairobi', hour12:false }) : '--';
+    badge.textContent = `↻ LIVE  ${t}`;
+  } else if (state === 'connecting') {
+    badge.textContent = '↻ Connecting…';
+  } else {
+    badge.textContent = '↻ Offline — retrying';
+  }
 }

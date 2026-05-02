@@ -411,6 +411,29 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 }
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
+/* ── Real-time Flash Animations ────────────────────────────── */
+@keyframes flash-up {
+  0%   { background-color: rgba(0,229,160,0.25); }
+  100% { background-color: transparent; }
+}
+@keyframes flash-down {
+  0%   { background-color: rgba(255,77,109,0.25); }
+  100% { background-color: transparent; }
+}
+.flash-up   { animation: flash-up   1.2s ease-out forwards; }
+.flash-down { animation: flash-down 1.2s ease-out forwards; }
+
+/* Live update status badge */
+.live-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.8px;
+  color: var(--accent); padding: 2px 8px;
+  background: var(--accent-glow2); border: 1px solid var(--accent-glow);
+  border-radius: 4px;
+}
+.live-badge.connecting { color: var(--yellow); border-color: var(--yellow-glow); background: rgba(245,200,66,0.06); }
+.live-badge.offline    { color: var(--text-muted); border-color: var(--border); background: var(--bg-surface); }
+
 /* ── Footer ────────────────────────────────────────────────── */
 .footer {
   border-top: 1px solid var(--border); background: var(--bg-surface);
