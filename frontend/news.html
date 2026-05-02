@@ -36,6 +36,49 @@
     .sentiment-score-bar.POSITIVE { background: linear-gradient(90deg, var(--accent-dim), var(--accent)); }
     .sentiment-score-bar.NEGATIVE { background: linear-gradient(90deg, var(--red-dim), var(--red)); }
     .sentiment-score-bar.NEUTRAL  { background: var(--border-light); }
+
+    /* Impact chips */
+    .impact-section { margin-top: 4px; }
+    .impact-label { font-size: 10px; font-weight: 700; letter-spacing: 0.8px;
+      color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px; }
+    .impact-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .impact-chip {
+      display: flex; align-items: center; gap: 5px;
+      padding: 4px 9px; border-radius: 6px; font-size: 11px; font-weight: 600;
+      cursor: default; position: relative; transition: var(--transition);
+    }
+    .impact-chip.POSITIVE {
+      background: rgba(0,229,160,0.1); border: 1px solid rgba(0,229,160,0.3);
+      color: var(--accent);
+    }
+    .impact-chip.NEGATIVE {
+      background: rgba(255,77,109,0.1); border: 1px solid rgba(255,77,109,0.3);
+      color: var(--red);
+    }
+    .impact-chip.NEUTRAL {
+      background: var(--bg-surface); border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+    .impact-chip .chip-icon { font-size: 9px; }
+    .impact-chip .chip-direct {
+      font-size: 9px; opacity: 0.7; font-weight: 400;
+    }
+    .impact-tooltip {
+      display: none; position: absolute; bottom: calc(100% + 6px); left: 0;
+      background: var(--bg-card); border: 1px solid var(--border-light);
+      border-radius: 8px; padding: 8px 12px; min-width: 200px; max-width: 280px;
+      font-size: 11px; line-height: 1.5; color: var(--text-secondary);
+      z-index: 50; box-shadow: var(--shadow);
+    }
+    .impact-chip:hover .impact-tooltip { display: block; }
+    .conf-bar {
+      height: 2px; border-radius: 1px; margin-top: 4px;
+      background: rgba(255,255,255,0.08);
+    }
+    .conf-fill { height: 100%; border-radius: 1px; }
+    .conf-fill.POSITIVE { background: var(--accent); }
+    .conf-fill.NEGATIVE { background: var(--red); }
+    .conf-fill.NEUTRAL  { background: var(--text-muted); }
   </style>
 </head>
 <body>
@@ -141,8 +184,36 @@
         return;
       }
       grid.innerHTML = articles.map(a => {
-        const sent = a.sentiment || { label:'NEUTRAL', score:0.5, score_pct:'50%' };
+        const sent  = a.sentiment || { label:'NEUTRAL', score:0.5, score_pct:'50%' };
         const width = Math.round((sent.score || 0.5) * 100);
+        const impacts = a.ticker_impacts || [];
+
+        const impactHTML = impacts.length ? `
+          <div class="impact-section">
+            <div class="impact-label">Stock Impact</div>
+            <div class="impact-chips">
+              ${impacts.slice(0, 6).map(imp => {
+                const icon = imp.direction === 'POSITIVE' ? '▲' : imp.direction === 'NEGATIVE' ? '▼' : '●';
+                const conf = Math.round(imp.confidence * 100);
+                const badge = imp.is_direct ? '' : '<span class="chip-direct">spillover</span>';
+                return `
+                  <div class="impact-chip ${imp.direction}">
+                    <span class="chip-icon">${icon}</span>
+                    <span>${imp.ticker}</span>
+                    ${badge}
+                    <div class="impact-tooltip">
+                      <strong>${imp.ticker} — ${imp.direction}</strong><br/>
+                      ${imp.reason}<br/>
+                      <div class="conf-bar"><div class="conf-fill ${imp.direction}" style="width:${conf}%"></div></div>
+                      <span style="font-size:10px;color:var(--text-muted)">Confidence: ${conf}%${imp.is_direct ? '' : ' (sector spillover)'}</span>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        ` : '';
+
         return `
           <div class="news-full-card">
             <div class="news-source-row">
@@ -152,11 +223,9 @@
             <div class="sentiment-score-bar ${sent.label}" style="width:${width}%"></div>
             <a href="${a.url}" target="_blank" rel="noopener" class="news-title" style="font-size:15px">${a.title}</a>
             ${a.summary ? `<div class="news-summary">${a.summary}</div>` : ''}
+            ${impactHTML}
             <div class="news-meta">
               <span>${a.published}</span>
-              <div class="news-tickers">
-                ${(a.related_tickers||[]).map(t => `<span class="news-ticker-chip">${t}</span>`).join('')}
-              </div>
             </div>
           </div>
         `;
