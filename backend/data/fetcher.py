@@ -1,4 +1,4 @@
-﻿"""
+"""
 NSE AI Platform - Data Fetcher
 Parallel fetching with in-memory TTL cache.
 - Stock prices: fetched concurrently via ThreadPoolExecutor
@@ -216,37 +216,49 @@ def _extract_tickers(text: str) -> list:
     return found
 
 
+def _seeded_rng(ticker: str) -> random.Random:
+    """Deterministic RNG seeded by ticker + today's date — same prices all day."""
+    seed = hash(ticker + datetime.now().strftime("%Y-%m-%d")) % (2 ** 32)
+    return random.Random(seed)
+
+
 def _fallback_stock(ticker: str, meta: dict) -> dict:
-    price      = BASE_PRICES.get(ticker, 50.0)
-    change     = round(random.uniform(-2.5, 2.5), 2)
-    change_pct = round((change / price) * 100, 2)
+    """Generate consistent mock stock data derived from mock history."""
+    history = _generate_mock_history(ticker)
+    rng     = _seeded_rng(ticker)
+    price   = history[-1]["close"] if history else BASE_PRICES.get(ticker, 50.0)
+    prev    = history[-2]["close"] if len(history) >= 2 else price
+    change  = round(price - prev, 2)
+    change_pct = round((change / prev) * 100, 2) if prev else 0.0
     return {
         "ticker": ticker, "name": meta["name"], "sector": meta["sector"],
-        "price": round(price + change, 2), "open": price,
-        "high": round(price + abs(change) + 0.5, 2),
-        "low":  round(price - abs(change) - 0.5, 2),
-        "volume": random.randint(100_000, 5_000_000),
+        "price":  round(price, 2), "open": round(prev, 2),
+        "high":   round(max(price, prev) * rng.uniform(1.001, 1.01), 2),
+        "low":    round(min(price, prev) * rng.uniform(0.990, 0.999), 2),
+        "volume": rng.randint(100_000, 5_000_000),
         "change": change, "change_pct": change_pct,
         "currency": "KES", "timestamp": datetime.now(NAIROBI_TZ).isoformat(),
     }
 
 
 def _generate_mock_history(ticker: str) -> list:
-    price   = BASE_PRICES.get(ticker, 50.0)
+    """Deterministic 180-day OHLCV walk — same result for same ticker+day."""
+    rng   = _seeded_rng(ticker)
+    price = BASE_PRICES.get(ticker, 50.0)
     history = []
     date    = datetime.now() - timedelta(days=180)
     for _ in range(180):
         date += timedelta(days=1)
         if date.weekday() >= 5:
             continue
-        change = random.uniform(-0.03, 0.03)
+        change = rng.uniform(-0.03, 0.03)
         price  = max(0.5, price * (1 + change))
         history.append({
             "date":   date.strftime("%Y-%m-%d"),
             "open":   round(price, 2),
-            "high":   round(price * random.uniform(1.001, 1.015), 2),
-            "low":    round(price * random.uniform(0.985, 0.999), 2),
-            "close":  round(price * random.uniform(0.995, 1.005), 2),
-            "volume": random.randint(100_000, 5_000_000),
+            "high":   round(price * rng.uniform(1.001, 1.015), 2),
+            "low":    round(price * rng.uniform(0.985, 0.999), 2),
+            "close":  round(price * rng.uniform(0.995, 1.005), 2),
+            "volume": rng.randint(100_000, 5_000_000),
         })
     return history

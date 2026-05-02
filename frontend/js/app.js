@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadNews(),
     loadStocksTable(),
   ]);
+  populateChartSelect();
   initChart();
   await updateChart(currentTicker, currentPeriod);
   await loadSignal(currentTicker);
@@ -63,6 +64,20 @@ function renderTicker(stocks) {
       </span>
     </div>
   `).join('');
+}
+
+// ── Chart Dropdown ─────────────────────────────────────────────────────────
+function populateChartSelect() {
+  const select = document.getElementById('chart-ticker-select');
+  if (!select || !allStocks.length) return;
+  select.innerHTML = allStocks
+    .sort((a, b) => a.ticker.localeCompare(b.ticker))
+    .map(s => `<option value="${s.ticker}">${s.name} (${s.ticker})</option>`)
+    .join('');
+  // Default to SCOM if available
+  const scom = [...select.options].find(o => o.value === 'SCOM');
+  if (scom) { select.value = 'SCOM'; currentTicker = 'SCOM'; }
+  else if (select.options.length) { currentTicker = select.options[0].value; }
 }
 
 // ── Market Overview ───────────────────────────────────────────────────────
@@ -259,10 +274,26 @@ function renderTable(stocks) {
           ${up ? '▲' : '▼'} ${Math.abs(s.change_pct).toFixed(2)}%
         </td>
         <td class="table-volume">${formatVolume(s.volume)}</td>
-        <td><span class="signal-pill NO_SIGNAL">—</span></td>
+        <td><span class="signal-pill NO_SIGNAL" id="sig-${s.ticker}">…</span></td>
       </tr>
     `;
   }).join('');
+
+  // Fetch AI signals for every visible stock (non-blocking)
+  stocks.forEach(s => fetchSignalBadge(s.ticker));
+}
+
+async function fetchSignalBadge(ticker) {
+  const el = document.getElementById(`sig-${ticker}`);
+  if (!el) return;
+  const data = await api.getPrediction(ticker);
+  if (!data) { el.textContent = '—'; return; }
+  el.className = `signal-pill ${data.direction}`;
+  if (data.direction === 'NO_SIGNAL') {
+    el.textContent = '—';
+  } else {
+    el.textContent = `${data.direction} ${data.confidence_pct}`;
+  }
 }
 
 function bindTableSearch() {
