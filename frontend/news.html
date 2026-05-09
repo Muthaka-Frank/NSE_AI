@@ -114,10 +114,12 @@
         <button class="filter-btn" data-filter="POSITIVE">🟢 Positive</button>
         <button class="filter-btn" data-filter="NEGATIVE">🔴 Negative</button>
         <button class="filter-btn" data-filter="NEUTRAL">⚪ Neutral</button>
-        <button class="filter-btn" data-filter="SCOM">Safaricom</button>
-        <button class="filter-btn" data-filter="EQTY">Equity</button>
-        <button class="filter-btn" data-filter="KCB">KCB</button>
-        <button class="filter-btn" data-filter="EABL">EABL</button>
+        <button class="filter-btn" data-filter="Banking">Banking</button>
+        <button class="filter-btn" data-filter="Telecommunications">Telecom</button>
+        <button class="filter-btn" data-filter="Manufacturing">Manufacturing</button>
+        <button class="filter-btn" data-filter="Consumer Staples">Consumer Staples</button>
+        <button class="filter-btn" data-filter="Energy">Energy</button>
+        <button class="filter-btn" data-filter="Insurance">Insurance</button>
       </div>
 
       <div class="news-page-grid" id="news-page-grid">
@@ -168,12 +170,28 @@
       });
     });
 
+    const SECTOR_MAP = {
+      'Banking': ['EQTY', 'KCB', 'COOP', 'ABSA', 'NCBA', 'STND', 'SBIC', 'HFCK'],
+      'Telecommunications': ['SCOM'],
+      'Manufacturing': ['BAMB'],
+      'Energy': ['KPLC'],
+      'Consumer Staples': ['EABL', 'BAT'],
+      'Insurance': ['KENR', 'JUB']
+    };
+
     function applyFilter() {
       let filtered = allArticles;
       if (activeFilter === 'POSITIVE') filtered = allArticles.filter(a => a.sentiment?.label === 'POSITIVE');
       else if (activeFilter === 'NEGATIVE') filtered = allArticles.filter(a => a.sentiment?.label === 'NEGATIVE');
       else if (activeFilter === 'NEUTRAL') filtered = allArticles.filter(a => a.sentiment?.label === 'NEUTRAL');
-      else if (activeFilter !== 'ALL') filtered = allArticles.filter(a => (a.related_tickers||[]).includes(activeFilter));
+      else if (activeFilter !== 'ALL') {
+        const sectorTickers = SECTOR_MAP[activeFilter] || [activeFilter];
+        filtered = allArticles.filter(a => {
+          const directTickers = a.related_tickers || [];
+          const impactTickers = (a.ticker_impacts || []).map(imp => imp.ticker);
+          return sectorTickers.some(t => directTickers.includes(t) || impactTickers.includes(t));
+        });
+      }
       renderNews(filtered);
     }
 

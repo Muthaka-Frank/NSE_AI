@@ -7,6 +7,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
 from routers import stocks, news, recommendations
+from routers import auth as auth_router
+import data.alpha_vantage as av
+from auth.database import init_db
 
 load_dotenv()
 
@@ -16,7 +19,6 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS — allow all origins in development (restrict in production)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,10 +27,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register routers
+# ── Startup ───────────────────────────────────────────────────────────────────
+@app.on_event("startup")
+def on_startup():
+    init_db()   # create users table if not exists
+
+# ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(stocks.router)
 app.include_router(news.router)
 app.include_router(recommendations.router)
+app.include_router(auth_router.router)
 
 
 @app.get("/")
@@ -45,7 +53,11 @@ def root():
             "stock_signal":    "/api/stocks/{ticker}/prediction",
             "news":            "/api/news",
             "recommendations": "/api/recommendations",
-            "alerts":          "/api/recommendations/alerts",
+            "data_sources":    "/api/data-sources",
+            "auth_register":   "/api/auth/register",
+            "auth_login":      "/api/auth/login",
+            "auth_google":     "/api/auth/google",
+            "auth_me":         "/api/auth/me",
         },
     }
 
@@ -53,3 +65,18 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/api/data-sources")
+def data_sources():
+    av_configured = av.is_configured()
+    av_quota      = av.remaining_calls() if av_configured else None
+    return {
+        "sources": {
+            "yahoo_finance":  {"active": True,  "description": "Yahoo Finance — 15-min delayed"},
+            "alpha_vantage":  {"active": av_configured, "quota": av_quota,
+                               "setup": "Add ALPHA_VANTAGE_API_KEY to .env" if not av_configured else None},
+            "estimated":      {"active": True,  "description": "Deterministic mock fallback"},
+        },
+        "priority": ["yahoo_finance", "alpha_vantage", "estimated"],
+    }

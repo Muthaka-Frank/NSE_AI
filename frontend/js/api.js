@@ -6,9 +6,17 @@
 const API_BASE = 'http://localhost:8000';
 
 const api = {
+  _headers() {
+    const token = localStorage.getItem('nse_ai_token');
+    return token
+      ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+      : { 'Content-Type': 'application/json' };
+  },
+
   async get(path) {
     try {
-      const res = await fetch(`${API_BASE}${path}`);
+      const res = await fetch(`${API_BASE}${path}`, { headers: this._headers() });
+      if (res.status === 401) { localStorage.removeItem('nse_ai_token'); window.location.href = 'login.html'; return null; }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
     } catch (err) {

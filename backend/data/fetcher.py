@@ -6,6 +6,8 @@ Parallel fetching with in-memory TTL cache.
 - Cache TTL: 5 min (stocks), 10 min (news), 15 min (history)
 """
 
+import logging
+import warnings
 import feedparser
 import yfinance as yf
 import pytz
@@ -14,6 +16,16 @@ import time
 from datetime import datetime, timedelta
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import data.alpha_vantage as av
+import data.nse_scraper as nse_scraper
+
+# Suppress yfinance "possibly delisted" and "No data found" console noise.
+# These are expected for NSE tickers not listed on Yahoo Finance —
+# the fallback chain (AV → mock) handles them silently.
+logging.getLogger("yfinance").setLevel(logging.ERROR)
+logging.getLogger("peewee").setLevel(logging.ERROR)
+warnings.filterwarnings("ignore", message=".*possibly delisted.*")
+warnings.filterwarnings("ignore", message=".*No data found.*")
 
 NAIROBI_TZ = pytz.timezone("Africa/Nairobi")
 
@@ -96,21 +108,23 @@ def get_stock_info(ticker: str) -> Optional[dict]:
 
 
 def get_historical_data(ticker: str, period: str = "6mo") -> list:
-    """Fetch OHLCV history. Cached for 15 minutes."""
+    """Fetch OHLCV history. Yahoo Finance first, Alpha Vantage fallback."""
     ticker = ticker.upper()
-    key = f"history_{ticker}_{period}"
+    key    = f"history_{ticker}_{period}"
     cached = _cache_get(key)
     if cached:
         return cached
     meta = NSE_STOCKS.get(ticker)
     if not meta:
         return []
+
+    data = []
+
+    # 1. Try Yahoo Finance
     try:
         tk   = yf.Ticker(meta["yahoo"])
         hist = tk.history(period=period, interval="1d", timeout=8)
-        if hist.empty:
-            data = _generate_mock_history(ticker)
-        else:
+        if not hist.empty:
             data = [
                 {"date": str(idx.date()), "open": round(float(r["Open"]),2),
                  "high": round(float(r["High"]),2), "low": round(float(r["Low"]),2),
@@ -118,7 +132,22 @@ def get_historical_data(ticker: str, period: str = "6mo") -> list:
                 for idx, r in hist.iterrows()
             ]
     except Exception:
+        pass
+
+    # 2. Try Alpha Vantage if Yahoo Finance failed
+    if not data and av.is_configured():
+        outputsize = "full" if period in ("6mo", "1y") else "compact"
+        av_data    = av.get_daily_history(meta["yahoo"], outputsize)
+        if av_data:
+            # Slice to approximate the requested period
+            days_map = {"1mo": 30, "3mo": 90, "6mo": 180, "1y": 365}
+            limit    = days_map.get(period, 180)
+            data     = av_data[-limit:]
+
+    # 3. Fall back to deterministic mock
+    if not data:
         data = _generate_mock_history(ticker)
+
     _cache_set(key, data, 900)
     return data
 
@@ -174,27 +203,59 @@ def clear_cache():
 
 
 def _fetch_single_stock(ticker: str, meta: dict) -> Optional[dict]:
+    """Yahoo Finance → NSE Scraper → Alpha Vantage → mock data."""
+
+    # 1. Try Yahoo Finance
     try:
         tk   = yf.Ticker(meta["yahoo"])
         hist = tk.history(period="5d", interval="1d", timeout=8)
-        if hist.empty:
-            return _fallback_stock(ticker, meta)
-        latest     = hist.iloc[-1]
-        prev       = hist.iloc[-2] if len(hist) >= 2 else hist.iloc[-1]
-        change     = float(latest["Close"] - prev["Close"])
-        change_pct = (change / float(prev["Close"])) * 100 if float(prev["Close"]) else 0.0
+        if not hist.empty:
+            latest     = hist.iloc[-1]
+            prev       = hist.iloc[-2] if len(hist) >= 2 else hist.iloc[-1]
+            change     = float(latest["Close"] - prev["Close"])
+            change_pct = (change / float(prev["Close"])) * 100 if float(prev["Close"]) else 0.0
+            return {
+                "ticker": ticker, "name": meta["name"], "sector": meta["sector"],
+                "price":  round(float(latest["Close"]), 2),
+                "open":   round(float(latest["Open"]), 2),
+                "high":   round(float(latest["High"]), 2),
+                "low":    round(float(latest["Low"]), 2),
+                "volume": int(latest["Volume"]),
+                "change": round(change, 2), "change_pct": round(change_pct, 2),
+                "currency": "KES",
+                "data_source": "yahoo_finance",
+                "data_as_of":  str(hist.index[-1].date()),
+                "timestamp":   datetime.now(NAIROBI_TZ).isoformat(),
+            }
+    except Exception:
+        pass
+
+    # 2. Try NSE scraper (real prices from public sources)
+    scraped = nse_scraper.get_price(ticker)
+    if scraped:
         return {
             "ticker": ticker, "name": meta["name"], "sector": meta["sector"],
-            "price":  round(float(latest["Close"]), 2),
-            "open":   round(float(latest["Open"]), 2),
-            "high":   round(float(latest["High"]), 2),
-            "low":    round(float(latest["Low"]), 2),
-            "volume": int(latest["Volume"]),
-            "change": round(change, 2), "change_pct": round(change_pct, 2),
-            "currency": "KES", "timestamp": datetime.now(NAIROBI_TZ).isoformat(),
+            "open": scraped["price"], "high": scraped["price"], "low": scraped["price"],
+            "currency": "KES",
+            "timestamp": datetime.now(NAIROBI_TZ).isoformat(),
+            **{k: scraped[k] for k in ("price", "change", "change_pct", "volume", "data_source")},
         }
-    except Exception:
-        return _fallback_stock(ticker, meta)
+
+    # 3. Try Alpha Vantage (rate-limited free quota)
+    if av.is_configured():
+        quote = av.get_quote(meta["yahoo"])
+        if quote:
+            return {
+                "ticker":  ticker,
+                "name":    meta["name"],
+                "sector":  meta["sector"],
+                "currency": "KES",
+                "timestamp": datetime.now(NAIROBI_TZ).isoformat(),
+                **quote,
+            }
+
+    # 4. Deterministic mock data
+    return _fallback_stock(ticker, meta)
 
 
 def _extract_tickers(text: str) -> list:
@@ -237,7 +298,10 @@ def _fallback_stock(ticker: str, meta: dict) -> dict:
         "low":    round(min(price, prev) * rng.uniform(0.990, 0.999), 2),
         "volume": rng.randint(100_000, 5_000_000),
         "change": change, "change_pct": change_pct,
-        "currency": "KES", "timestamp": datetime.now(NAIROBI_TZ).isoformat(),
+        "currency": "KES",
+        "data_source": "estimated",
+        "data_as_of":  None,
+        "timestamp":   datetime.now(NAIROBI_TZ).isoformat(),
     }
 
 

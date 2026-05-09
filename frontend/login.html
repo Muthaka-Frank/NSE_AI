@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign In — NSE AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:#080d12;--card:#111c2b;--surface:#0e1520;
+      --border:#1e2f45;--border-l:#243650;
+      --accent:#00e5a0;--accent-d:#00b87f;
+      --ag:rgba(0,229,160,.15);--ag2:rgba(0,229,160,.06);
+      --red:#ff4d6d;--rg:rgba(255,77,109,.12);
+      --tp:#e8f0fe;--ts:#7a9abf;--tm:#3d5a7a;
+      --font:'Inter',sans-serif;--r:12px;--rs:6px;
+      --tr:.2s ease;--sh:0 8px 48px rgba(0,0,0,.6);
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:var(--font);background:var(--bg);color:var(--tp);min-height:100vh;
+      display:grid;place-items:center;-webkit-font-smoothing:antialiased;
+      background-image:radial-gradient(ellipse 80% 60% at 50% -20%,rgba(0,229,160,.08),transparent),
+        radial-gradient(ellipse 60% 40% at 80% 80%,rgba(0,180,130,.05),transparent);}
+    .logo-bar{position:fixed;top:0;left:0;right:0;padding:14px 24px;display:flex;align-items:center;gap:10px;
+      background:rgba(8,13,18,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);}
+    .logo-icon{width:32px;height:32px;background:var(--ag2);border:1px solid var(--ag);border-radius:8px;
+      display:flex;align-items:center;justify-content:center;}
+    .logo-text{font-size:17px;font-weight:700;} .logo-text span{color:var(--accent);}
+    .card{width:100%;max-width:420px;background:var(--card);border:1px solid var(--border);
+      border-radius:20px;padding:40px;box-shadow:var(--sh);
+      animation:in .5s cubic-bezier(.16,1,.3,1);}
+    @keyframes in{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+    h1{font-size:26px;font-weight:800;letter-spacing:-.5px;margin-bottom:4px;}
+    .sub{font-size:14px;color:var(--ts);margin-bottom:28px;}
+    .btn-google{width:100%;padding:12px;border-radius:var(--r);font-size:14px;font-weight:600;
+      font-family:var(--font);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;
+      background:var(--surface);color:var(--tp);border:1px solid var(--border-l);transition:var(--tr);margin-bottom:20px;}
+    .btn-google:hover{background:#162035;border-color:var(--ts);}
+    .divider{display:flex;align-items:center;gap:12px;margin-bottom:20px;}
+    .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border);}
+    .divider span{font-size:12px;color:var(--tm);}
+    .fg{margin-bottom:16px;}
+    label{display:block;font-size:12px;font-weight:600;color:var(--ts);letter-spacing:.5px;margin-bottom:6px;}
+    input[type=email],input[type=password]{width:100%;padding:11px 14px;border-radius:var(--rs);
+      background:var(--surface);color:var(--tp);border:1px solid var(--border);
+      font-family:var(--font);font-size:14px;outline:none;transition:var(--tr);}
+    input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--ag);}
+    input::placeholder{color:var(--tm);}
+    .btn-primary{width:100%;padding:13px;border-radius:var(--r);font-size:14px;font-weight:700;
+      font-family:var(--font);cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--accent-d));
+      color:#000;border:none;transition:var(--tr);margin-top:4px;}
+    .btn-primary:hover{filter:brightness(1.1);transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,229,160,.3);}
+    .btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none;}
+    .err{background:var(--rg);border:1px solid var(--red);color:var(--red);border-radius:var(--rs);
+      padding:10px 14px;font-size:13px;margin-bottom:16px;display:none;}
+    .foot{margin-top:24px;text-align:center;font-size:13px;color:var(--tm);}
+    .foot a{color:var(--accent);font-weight:600;}
+    .google-notice{display:none;background:rgba(245,200,66,.08);border:1px solid rgba(245,200,66,.3);
+      border-radius:var(--rs);padding:10px 14px;font-size:12px;color:#f5c842;
+      margin-bottom:16px;line-height:1.5;}
+    .google-notice a{color:#f5c842;font-weight:600;}
+    #google-fallback{display:none;margin-bottom:8px;}
+  </style>
+</head>
+<body>
+<div class="logo-bar">
+  <div class="logo-icon">
+    <svg width="20" height="20" viewBox="0 0 28 28" fill="none">
+      <path d="M4 20L10 12L14 16L19 8L24 14" stroke="#00e5a0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="24" cy="14" r="2.5" fill="#00e5a0"/>
+    </svg>
+  </div>
+  <span class="logo-text">NSE <span>AI</span></span>
+</div>
+
+<div class="card">
+  <h1>Welcome back</h1>
+  <p class="sub">Sign in to your NSE AI intelligence account</p>
+  <div class="err" id="err"></div>
+
+  <div class="google-notice" id="google-notice">
+    ⚙️ Google Sign-In needs a Client ID.<br>
+    <strong>Setup:</strong> <a href="https://console.cloud.google.com" target="_blank">console.cloud.google.com</a>
+    → APIs &amp; Services → Credentials → OAuth 2.0 Client ID (Web)<br>
+    Add origin <code>http://localhost:5500</code>, then paste the Client ID into <code>backend/.env</code>
+  </div>
+
+
+  <div id="google-btn-wrap" style="margin-bottom:20px;"></div>
+
+
+  <div class="divider"><span>or sign in with email</span></div>
+
+  <form onsubmit="handleLogin(event)">
+    <div class="fg">
+      <label for="email">Email address</label>
+      <input type="email" id="email" placeholder="you@example.com" required autocomplete="email" />
+    </div>
+    <div class="fg">
+      <label for="password">Password</label>
+      <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password" />
+    </div>
+    <button type="submit" class="btn-primary" id="sbtn">Sign In</button>
+  </form>
+
+  <div class="foot">Don't have an account? <a href="register.html">Create one</a></div>
+</div>
+
+<!-- Google Identity Services -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="js/auth.js?v=2"></script>
+<script>
+  auth.requireGuest();
+
+  // ── Google Init ──────────────────────────────────────────────────────────
+  let _googleReady = false;
+
+  async function initGoogle() {
+    const wrap = document.getElementById('google-btn-wrap');
+    try {
+      const r   = await fetch('http://localhost:8000/api/auth/google-config');
+      const { client_id } = await r.json();
+
+      const isReal = client_id &&
+                     !client_id.includes('your_google_client_id_here') &&
+                     client_id.includes('.apps.googleusercontent.com');
+
+      if (!isReal) {
+        wrap.innerHTML = `<button class="btn-google" disabled style="opacity:.45;cursor:not-allowed" title="Google Sign-In not configured">
+          <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/><path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 010-3.04V5.41H1.83a8 8 0 000 7.18l2.67-2.07z"/><path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 001.83 5.4L4.5 7.49a4.77 4.77 0 014.48-3.3z"/></svg>
+          Continue with Google
+        </button>`;
+        document.getElementById('google-notice').style.display = 'block';
+        return;
+      }
+
+      // Check for common origin mismatches that cause Error 400
+      const currentOrigin = window.location.origin;
+      if (currentOrigin !== 'http://localhost:5500') {
+        const notice = document.getElementById('google-notice');
+        notice.innerHTML = `⚠️ <strong>Origin Mismatch Detected!</strong><br><br>
+          You are accessing this page from <code>${currentOrigin}</code>.<br>
+          Google OAuth strictly requires the origin to match exactly what is configured in your Google Cloud Console.<br><br>
+          Please access the site via: <a href="http://localhost:5500/login.html">http://localhost:5500/login.html</a><br>
+          <em>(If you configured 127.0.0.1 in Google Console, you must use that instead)</em>`;
+        notice.style.display = 'block';
+        notice.style.borderColor = 'var(--red)';
+        notice.style.color = '#fff';
+        notice.style.background = 'var(--rg)';
+        return;
+      }
+
+      // Wait for GIS library to load
+      await new Promise(resolve => {
+        if (typeof google !== 'undefined') { resolve(); return; }
+        let tries = 0;
+        const t = setInterval(() => {
+          if (typeof google !== 'undefined' || ++tries > 60) { clearInterval(t); resolve(); }
+        }, 100);
+      });
+
+      if (typeof google === 'undefined') { return; }
+
+      google.accounts.id.initialize({
+        client_id,
+        callback: handleGoogleResponse,
+        auto_select: false,
+        cancel_on_tap_outside: true,
+      });
+
+      // Render the official single Google button
+      google.accounts.id.renderButton(wrap, {
+        type: 'standard', theme: 'filled_black',
+        size: 'large', text: 'signin_with', width: 340,
+      });
+
+    } catch (_) {}
+  }
+
+  async function handleGoogleResponse(response) {
+    setLoading(true);
+    try { await auth.googleAuth(response.credential); location.href = 'index.html'; }
+    catch(e) { showErr(e.message || 'Google sign-in failed'); setLoading(false); }
+  }
+
+  // ── Email Login ──────────────────────────────────────────────────────────
+  async function handleLogin(e) {
+    e.preventDefault(); setLoading(true);
+    document.getElementById('err').style.display = 'none';
+    try {
+      await auth.login(
+        document.getElementById('email').value,
+        document.getElementById('password').value
+      );
+      location.href = 'index.html';
+    } catch(err) { showErr(err.message); setLoading(false); }
+  }
+
+  function setLoading(on) {
+    const b = document.getElementById('sbtn');
+    b.disabled = on; b.textContent = on ? 'Signing in…' : 'Sign In';
+  }
+  function showErr(msg) {
+    const e = document.getElementById('err'); e.textContent = msg; e.style.display = 'block';
+  }
+
+  initGoogle();
+</script>
+</body>
+</html>

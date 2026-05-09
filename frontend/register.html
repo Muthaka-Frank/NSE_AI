@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create Account — NSE AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:#080d12;--card:#111c2b;--surface:#0e1520;
+      --border:#1e2f45;--border-l:#243650;
+      --accent:#00e5a0;--accent-d:#00b87f;
+      --ag:rgba(0,229,160,.15);--ag2:rgba(0,229,160,.06);
+      --red:#ff4d6d;--rg:rgba(255,77,109,.12);
+      --tp:#e8f0fe;--ts:#7a9abf;--tm:#3d5a7a;
+      --font:'Inter',sans-serif;--r:12px;--rs:6px;--tr:.2s ease;
+      --sh:0 8px 48px rgba(0,0,0,.6);
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:var(--font);background:var(--bg);color:var(--tp);min-height:100vh;
+      display:grid;place-items:center;-webkit-font-smoothing:antialiased;
+      background-image:radial-gradient(ellipse 80% 60% at 50% -20%,rgba(0,229,160,.08),transparent),
+        radial-gradient(ellipse 60% 40% at 20% 90%,rgba(0,180,130,.05),transparent);}
+    .logo-bar{position:fixed;top:0;left:0;right:0;padding:14px 24px;display:flex;align-items:center;gap:10px;
+      background:rgba(8,13,18,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);}
+    .logo-icon{width:32px;height:32px;background:var(--ag2);border:1px solid var(--ag);border-radius:8px;
+      display:flex;align-items:center;justify-content:center;}
+    .logo-text{font-size:17px;font-weight:700;} .logo-text span{color:var(--accent);}
+    .card{width:100%;max-width:420px;background:var(--card);border:1px solid var(--border);
+      border-radius:20px;padding:40px;box-shadow:var(--sh);
+      animation:in .5s cubic-bezier(.16,1,.3,1);}
+    @keyframes in{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+    h1{font-size:26px;font-weight:800;letter-spacing:-.5px;margin-bottom:4px;}
+    .sub{font-size:14px;color:var(--ts);margin-bottom:28px;}
+    .btn-google{width:100%;padding:12px;border-radius:var(--r);font-size:14px;font-weight:600;
+      font-family:var(--font);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;
+      background:var(--surface);color:var(--tp);border:1px solid var(--border-l);transition:var(--tr);margin-bottom:20px;}
+    .btn-google:hover{background:#162035;border-color:var(--ts);}
+    .divider{display:flex;align-items:center;gap:12px;margin-bottom:20px;}
+    .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border);}
+    .divider span{font-size:12px;color:var(--tm);}
+    .fg{margin-bottom:16px;}
+    label{display:block;font-size:12px;font-weight:600;color:var(--ts);letter-spacing:.5px;margin-bottom:6px;}
+    input[type=text],input[type=email],input[type=password]{width:100%;padding:11px 14px;border-radius:var(--rs);
+      background:var(--surface);color:var(--tp);border:1px solid var(--border);
+      font-family:var(--font);font-size:14px;outline:none;transition:var(--tr);}
+    input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--ag);}
+    input::placeholder{color:var(--tm);}
+    .hint{font-size:11px;color:var(--tm);margin-top:4px;}
+    .btn-primary{width:100%;padding:13px;border-radius:var(--r);font-size:14px;font-weight:700;
+      font-family:var(--font);cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--accent-d));
+      color:#000;border:none;transition:var(--tr);margin-top:4px;}
+    .btn-primary:hover{filter:brightness(1.1);transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,229,160,.3);}
+    .btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none;}
+    .err{background:var(--rg);border:1px solid var(--red);color:var(--red);border-radius:var(--rs);
+      padding:10px 14px;font-size:13px;margin-bottom:16px;display:none;}
+    .foot{margin-top:24px;text-align:center;font-size:13px;color:var(--tm);}
+    .foot a{color:var(--accent);font-weight:600;}
+    .perks{display:flex;flex-direction:column;gap:8px;margin-bottom:28px;}
+    .perk{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ts);}
+    .perk-dot{width:20px;height:20px;border-radius:50%;background:var(--ag2);border:1px solid var(--ag);
+      display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;}
+  </style>
+</head>
+<body>
+<div class="logo-bar">
+  <div class="logo-icon">
+    <svg width="20" height="20" viewBox="0 0 28 28" fill="none">
+      <path d="M4 20L10 12L14 16L19 8L24 14" stroke="#00e5a0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="24" cy="14" r="2.5" fill="#00e5a0"/>
+    </svg>
+  </div>
+  <span class="logo-text">NSE <span>AI</span></span>
+</div>
+
+<div class="card">
+  <h1>Create account</h1>
+  <p class="sub">Join Kenya's AI-powered stock intelligence platform</p>
+
+  <div class="perks">
+    <div class="perk"><div class="perk-dot">✓</div>Real-time NSE stock prices</div>
+    <div class="perk"><div class="perk-dot">✓</div>AI-generated buy/sell signals</div>
+    <div class="perk"><div class="perk-dot">✓</div>Market news with impact analysis</div>
+  </div>
+
+  <div class="err" id="err"></div>
+
+  <button class="btn-google" onclick="triggerGoogle()">
+    <svg width="18" height="18" viewBox="0 0 18 18">
+      <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/>
+      <path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/>
+      <path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 010-3.04V5.41H1.83a8 8 0 000 7.18l2.67-2.07z"/>
+      <path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 001.83 5.4L4.5 7.49a4.77 4.77 0 014.48-3.3z"/>
+    </svg>
+    Sign up with Google
+  </button>
+
+  <div class="divider"><span>or create with email</span></div>
+
+  <form onsubmit="handleRegister(event)">
+    <div class="fg">
+      <label for="name">Full name</label>
+      <input type="text" id="name" placeholder="John Kamau" required autocomplete="name" />
+    </div>
+    <div class="fg">
+      <label for="email">Email address</label>
+      <input type="email" id="email" placeholder="you@example.com" required autocomplete="email" />
+    </div>
+    <div class="fg">
+      <label for="password">Password</label>
+      <input type="password" id="password" placeholder="Min. 8 characters" required autocomplete="new-password" />
+      <div class="hint">At least 8 characters</div>
+    </div>
+    <button type="submit" class="btn-primary" id="sbtn">Create Account</button>
+  </form>
+
+  <div class="foot">Already have an account? <a href="login.html">Sign in</a></div>
+</div>
+
+<div id="g_id_onload" data-client_id="" data-callback="handleGoogleResponse" data-auto_prompt="false" style="display:none"></div>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="js/auth.js?v=2"></script>
+<script>
+  auth.requireGuest();
+
+  fetch('http://localhost:8000/api/auth/google-config')
+    .then(r => r.json()).then(d => {
+      if (d.client_id) document.getElementById('g_id_onload').dataset.clientId = d.client_id;
+    }).catch(() => {});
+
+  function triggerGoogle() {
+    if (typeof google === 'undefined') { showErr('Google Sign-In unavailable.'); return; }
+    google.accounts.id.prompt();
+  }
+  async function handleGoogleResponse(response) {
+    setLoading(true);
+    try { await auth.googleAuth(response.credential); location.href = 'index.html'; }
+    catch(e) { showErr(e.message); setLoading(false); }
+  }
+  async function handleRegister(e) {
+    e.preventDefault();
+    const pass = document.getElementById('password').value;
+    if (pass.length < 8) { showErr('Password must be at least 8 characters.'); return; }
+    setLoading(true);
+    document.getElementById('err').style.display = 'none';
+    try {
+      await auth.register(
+        document.getElementById('name').value,
+        document.getElementById('email').value,
+        pass
+      );
+      location.href = 'index.html';
+    } catch(err) { showErr(err.message); setLoading(false); }
+  }
+  function setLoading(on) {
+    const b = document.getElementById('sbtn');
+    b.disabled = on; b.textContent = on ? 'Creating account…' : 'Create Account';
+  }
+  function showErr(msg) {
+    const e = document.getElementById('err'); e.textContent = msg; e.style.display = 'block';
+  }
+</script>
+</body>
+</html>

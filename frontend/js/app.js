@@ -9,24 +9,37 @@ let currentTicker  = 'SCOM';
 let currentPeriod  = '3mo';
 
 // ── Boot ──────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => {
+function bootDashboard() {
   startClock();
-  await Promise.all([
-    loadTicker(),
-    loadOverview(),
-    loadRecommendations(),
-    loadNews(),
-    loadStocksTable(),
-  ]);
-  populateChartSelect();
-  initChart();
-  await updateChart(currentTicker, currentPeriod);
-  await loadSignal(currentTicker);
-  bindChartControls();
-  bindTableSearch();
-  startLiveUpdates();          // SSE real-time prices
+
+  // ── Step 1: Render MOCK instantly so user sees content immediately ────
+  try { allStocks = MOCK.stocks; renderTicker(MOCK.stocks); } catch(e) { console.warn('ticker:', e); }
+  try { renderTable(MOCK.stocks); } catch(e) { console.warn('table:', e); }
+  try { _renderOverviewFromStocks(MOCK.stocks); } catch(e) { console.warn('overview:', e); }
+  try { populateChartSelect(); initChart(); updateChart(currentTicker, currentPeriod); } catch(e) { console.warn('chart:', e); }
+  try { loadSignal(currentTicker); } catch(e) { console.warn('signal:', e); }
+  try { bindChartControls(); bindTableSearch(); } catch(e) { console.warn('controls:', e); }
+
+  // ── Step 2: Load news immediately (fast — not Yahoo Finance) ─────────
+  loadNews().catch(e => console.warn('news:', e));
+
+  // ── Step 3: Load recommendations independently ───────────────────────
+  loadRecommendations().catch(e => console.warn('recs:', e));
+
+  // ── Step 4: Fetch real stock data, replace mock when ready ───────────
+  api.getStocks().then(data => {
+    if (!data?.stocks?.length) return;
+    allStocks = data.stocks;
+    try { renderTicker(data.stocks); } catch(e) {}
+    try { renderTable(data.stocks); } catch(e) {}
+    try { _renderOverviewFromStocks(data.stocks); } catch(e) {}
+    try { populateChartSelect(); updateChart(currentTicker, currentPeriod).then(() => loadSignal(currentTicker)); } catch(e) {}
+    try { startLiveUpdates(); } catch(e) {}
+  }).catch(e => console.warn('stocks fetch:', e));
+
+  // ── Step 5: Refresh news every 2 min ─────────────────────────────────
   setInterval(loadNews, 120_000);
-});
+}
 
 // ── Clock ─────────────────────────────────────────────────────────────────
 function startClock() {
@@ -54,6 +67,7 @@ async function loadTicker() {
 
 function renderTicker(stocks) {
   const tape = document.getElementById('ticker-tape');
+  if (!tape) return;
   const doubled = [...stocks, ...stocks]; // Seamless loop
   tape.innerHTML = doubled.map(s => `
     <div class="ticker-item" onclick="jumpToStock('${s.ticker}')">
@@ -84,6 +98,10 @@ function populateChartSelect() {
 async function loadOverview() {
   const data   = await api.getStocks();
   const stocks = data?.stocks || MOCK.stocks;
+  _renderOverviewFromStocks(stocks);
+}
+
+function _renderOverviewFromStocks(stocks) {
   const gainers = stocks.filter(s => s.change_pct > 0).length;
   const losers  = stocks.filter(s => s.change_pct < 0).length;
   const avgChg  = stocks.reduce((a,s) => a + s.change_pct, 0) / stocks.length;
@@ -262,8 +280,11 @@ async function loadStocksTable() {
 
 function renderTable(stocks) {
   const tbody = document.getElementById('stocks-tbody');
+  if (!tbody) return;  // Not on a page with a stocks table
   tbody.innerHTML = stocks.map(s => {
-    const up = s.change_pct >= 0;
+    const up  = s.change_pct >= 0;
+    const src = s.data_source === 'yahoo_finance' ? 'yahoo_finance' : 'estimated';
+    const srcBadge = _srcBadge(src, s.data_as_of);
     return `
       <tr onclick="jumpToStock('${s.ticker}')" data-ticker="${s.ticker}">
         <td class="table-ticker">${s.ticker}</td>
@@ -271,6 +292,7 @@ function renderTable(stocks) {
         <td>${s.sector}</td>
         <td class="table-price" id="price-${s.ticker}" data-value="${s.price}">
           KES ${s.price.toFixed(2)}
+          <span id="src-${s.ticker}">${srcBadge}</span>
         </td>
         <td class="${up ? 'change-up' : 'change-down'}" id="change-${s.ticker}">
           ${up ? '▲' : '▼'} ${Math.abs(s.change_pct).toFixed(2)}%
@@ -283,6 +305,14 @@ function renderTable(stocks) {
 
   // Fetch AI signals for every visible stock (non-blocking)
   stocks.forEach(s => fetchSignalBadge(s.ticker));
+}
+
+function _srcBadge(source, asOf) {
+  if (source === 'yahoo_finance') {
+    const tip = asOf ? `Yahoo Finance · as of ${asOf} (15-min delay)` : 'Yahoo Finance';
+    return `<span class="data-src-badge live" title="${tip}">YF</span>`;
+  }
+  return `<span class="data-src-badge est" title="Estimated · no live feed available">EST</span>`;
 }
 
 async function fetchSignalBadge(ticker) {
@@ -397,6 +427,9 @@ function updatePricesInPlace(stocks) {
       changeEl.textContent = `${up ? '▲' : '▼'} ${Math.abs(s.change_pct).toFixed(2)}%`;
     }
     if (volEl) volEl.textContent = formatVolume(s.volume);
+    // Update source badge
+    const srcEl = document.getElementById(`src-${s.ticker}`);
+    if (srcEl) srcEl.outerHTML = _srcBadge(s.data_source || 'estimated', s.data_as_of);
   });
 
   // Also refresh ticker tape and overview
