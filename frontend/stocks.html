@@ -97,6 +97,8 @@
           <button class="sector-btn" data-sector="Energy">Energy</button>
           <button class="sector-btn" data-sector="Insurance">Insurance</button>
           <button class="sector-btn" data-sector="Manufacturing">Manufacturing</button>
+          <button class="sector-btn" data-sector="Investment">Investment</button>
+          <button class="sector-btn" data-sector="Agricultural">Agricultural</button>
         </div>
       </div>
 
@@ -147,11 +149,15 @@
       };
       tick(); setInterval(tick, 1000);
 
-      // Load stocks
-      const data = await api.getStocks();
-      allStocks = data?.stocks || MOCK.stocks;
-      renderTicker(allStocks);
-      renderTable(allStocks);
+      // Load stocks and refresh every 30 seconds
+      const refreshStockData = async () => {
+        const data = await api.getStocks();
+        allStocks = data?.stocks || MOCK.stocks;
+        renderTicker(allStocks);
+        applyFilters();
+      };
+      await refreshStockData();
+      setInterval(refreshStockData, 30_000);
 
       // Sector filters
       document.getElementById('sector-filters').addEventListener('click', e => {

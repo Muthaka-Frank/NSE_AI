@@ -1,16 +1,37 @@
-"""
-NSE AI Platform — Sentiment Engine (MVP)
-Keyword-based financial sentiment analysis with confidence scoring.
-"""
-
 import re
+import logging
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class SentimentResult:
     label: str      # "POSITIVE" | "NEGATIVE" | "NEUTRAL"
     score: float    # 0.0 – 1.0
     reasoning: str
+
+# Lazy loading FinBERT components
+_finbert_pipeline = None
+_finbert_attempted = False
+
+def _get_finbert():
+    global _finbert_pipeline, _finbert_attempted
+    if _finbert_pipeline is not None:
+        return _finbert_pipeline
+    if _finbert_attempted:
+        return None
+    _finbert_attempted = True
+    try:
+        from transformers import pipeline
+        logger.info("Initializing FinBERT sentiment model (ProsusDE/finbert)...")
+        # We specify device=-1 to run on CPU locally; safe for all users
+        _finbert_pipeline = pipeline("sentiment-analysis", model="ProsusDE/finbert", device=-1)
+        logger.info("FinBERT model successfully loaded.")
+        return _finbert_pipeline
+    except Exception as e:
+        logger.debug("FinBERT could not be loaded: %s. Using keyword sentiment engine.", e)
+        return None
+
 
 POSITIVE_KEYWORDS = {
     "profit": 0.8, "profits": 0.8, "earnings": 0.75, "revenue": 0.7,
@@ -39,6 +60,23 @@ def analyse(text: str) -> SentimentResult:
     if not text or not text.strip():
         return SentimentResult("NEUTRAL", 0.5, "No text provided.")
 
+    # 1. Try FinBERT
+    nlp = _get_finbert()
+    if nlp is not None:
+        try:
+            truncated_text = text[:1500]
+            prediction = nlp(truncated_text)[0]
+            label = prediction["label"].upper()
+            score = round(float(prediction["score"]), 3)
+            return SentimentResult(
+                label=label,
+                score=score,
+                reasoning=f"FinBERT NLP classification (confidence: {score:.0%})."
+            )
+        except Exception as e:
+            logger.debug("FinBERT inference failed: %s. Falling back to keywords.", e)
+
+    # 2. Fallback to Keyword analysis
     words = re.findall(r"\b\w+\b", text.lower())
     pos_score, neg_score = 0.0, 0.0
     matched_pos, matched_neg = [], []

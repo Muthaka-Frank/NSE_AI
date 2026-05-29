@@ -120,6 +120,8 @@
         <button class="filter-btn" data-filter="Consumer Staples">Consumer Staples</button>
         <button class="filter-btn" data-filter="Energy">Energy</button>
         <button class="filter-btn" data-filter="Insurance">Insurance</button>
+        <button class="filter-btn" data-filter="Investment">Investment</button>
+        <button class="filter-btn" data-filter="Agricultural">Agricultural</button>
       </div>
 
       <div class="news-page-grid" id="news-page-grid">
@@ -154,10 +156,14 @@
       };
       tick(); setInterval(tick, 1000);
 
-      // News
-      const data = await api.getNews();
-      allArticles = data?.articles || MOCK.news;
-      renderNews(allArticles);
+      // News and auto-refresh every 2 minutes
+      const refreshNewsData = async () => {
+        const data = await api.getNews();
+        allArticles = data?.articles || MOCK.news;
+        applyFilter();
+      };
+      await refreshNewsData();
+      setInterval(refreshNewsData, 120_000);
 
       // Filters
       document.getElementById('news-filters').addEventListener('click', e => {
@@ -171,12 +177,14 @@
     });
 
     const SECTOR_MAP = {
-      'Banking': ['EQTY', 'KCB', 'COOP', 'ABSA', 'NCBA', 'STND', 'SBIC', 'HFCK'],
+      'Banking': ['EQTY', 'KCB', 'COOP', 'ABSA', 'NCBA', 'STND', 'SBIC', 'HFCK', 'IMH', 'DTK'],
       'Telecommunications': ['SCOM'],
-      'Manufacturing': ['BAMB'],
-      'Energy': ['KPLC'],
+      'Manufacturing': ['BAMB', 'UNGA'],
+      'Energy': ['KPLC', 'KEGN', 'TOTL'],
       'Consumer Staples': ['EABL', 'BAT'],
-      'Insurance': ['KENR', 'JUB']
+      'Insurance': ['KENR', 'JUB', 'BRIT', 'CIC'],
+      'Investment': ['CTUM'],
+      'Agricultural': ['KUKZ', 'SASN']
     };
 
     function applyFilter() {

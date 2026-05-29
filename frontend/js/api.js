@@ -25,6 +25,41 @@ const api = {
     }
   },
 
+  async post(path, body) {
+    try {
+      const res = await fetch(`${API_BASE}${path}`, {
+        method: 'POST',
+        headers: this._headers(),
+        body: JSON.stringify(body)
+      });
+      if (res.status === 401) { localStorage.removeItem('nse_ai_token'); window.location.href = 'login.html'; return null; }
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.detail || `HTTP ${res.status}`);
+      }
+      return await res.json();
+    } catch (err) {
+      console.warn(`[API] POST ${path} failed:`, err.message);
+      alert(err.message);
+      return null;
+    }
+  },
+
+  async delete(path) {
+    try {
+      const res = await fetch(`${API_BASE}${path}`, {
+        method: 'DELETE',
+        headers: this._headers()
+      });
+      if (res.status === 401) { localStorage.removeItem('nse_ai_token'); window.location.href = 'login.html'; return null; }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      console.warn(`[API] DELETE ${path} failed:`, err.message);
+      return null;
+    }
+  },
+
   async getStocks()            { return this.get('/api/stocks'); },
   async getStock(ticker)       { return this.get(`/api/stocks/${ticker}`); },
   async getHistory(ticker, period = '3mo') { return this.get(`/api/stocks/${ticker}/history?period=${period}`); },
@@ -32,6 +67,14 @@ const api = {
   async getNews(ticker = null) { return this.get(`/api/news${ticker ? `?ticker=${ticker}` : ''}`); },
   async getRecommendations()   { return this.get('/api/recommendations'); },
   async getAlerts()            { return this.get('/api/recommendations/alerts'); },
+  
+  // Watchlist & Portfolio
+  async getWatchlist()         { return this.get('/api/watchlist'); },
+  async addToWatchlist(ticker) { return this.post('/api/watchlist', { ticker }); },
+  async removeFromWatchlist(ticker) { return this.delete(`/api/watchlist/${ticker}`); },
+  async getPortfolio()         { return this.get('/api/portfolio'); },
+  async addToPortfolio(ticker, buy_price, quantity) { return this.post('/api/portfolio', { ticker, buy_price, quantity }); },
+  async removeFromPortfolio(id) { return this.delete(`/api/portfolio/${id}`); }
 };
 
 // ── Mock data (fallback when backend is offline) ───────────────────────────

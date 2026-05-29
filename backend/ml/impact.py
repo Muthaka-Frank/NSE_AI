@@ -8,14 +8,15 @@ For each news article, determines per-ticker impact:
 
 from ml.sentiment import analyse, SentimentResult
 
-# Sector membership for spillover analysis
 SECTOR_MAP = {
-    "Banking":         ["EQTY", "KCB", "COOP", "ABSA", "NCBA", "STND", "SBIC", "HFCK"],
+    "Banking":         ["EQTY", "KCB", "COOP", "ABSA", "NCBA", "STND", "SBIC", "HFCK", "IMH", "DTK"],
     "Telecommunications": ["SCOM"],
     "Consumer Staples":["EABL", "BAT"],
-    "Energy":          ["KPLC"],
-    "Manufacturing":   ["BAMB"],
-    "Insurance":       ["KENR", "JUB"],
+    "Energy":          ["KPLC", "KEGN", "TOTL"],
+    "Manufacturing":   ["BAMB", "UNGA"],
+    "Insurance":       ["KENR", "JUB", "BRIT", "CIC"],
+    "Investment":      ["CTUM"],
+    "Agricultural":    ["KUKZ", "SASN"],
 }
 
 TICKER_SECTOR = {t: s for s, tickers in SECTOR_MAP.items() for t in tickers}

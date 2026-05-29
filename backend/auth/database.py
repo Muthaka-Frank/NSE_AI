@@ -34,5 +34,5 @@ def get_db():
 
 def init_db():
     """Create all tables. Called once on startup."""
-    from auth.models import User  # noqa: F401 — ensures model is registered
+    from auth.models import User, StockHistory, WatchlistItem, PortfolioItem  # noqa: F401
     Base.metadata.create_all(bind=engine)

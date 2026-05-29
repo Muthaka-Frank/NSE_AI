@@ -8,8 +8,10 @@ from dotenv import load_dotenv
 
 from routers import stocks, news, recommendations
 from routers import auth as auth_router
+from routers import watchlist, alerts
 import data.alpha_vantage as av
 from auth.database import init_db
+from data.scheduler import start_scheduler
 
 load_dotenv()
 
@@ -31,12 +33,15 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     init_db()   # create users table if not exists
+    start_scheduler()  # start daily scraper scheduler loop
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(stocks.router)
 app.include_router(news.router)
 app.include_router(recommendations.router)
 app.include_router(auth_router.router)
+app.include_router(watchlist.router)
+app.include_router(alerts.router)
 
 
 @app.get("/")
@@ -58,6 +63,9 @@ def root():
             "auth_login":      "/api/auth/login",
             "auth_google":     "/api/auth/google",
             "auth_me":         "/api/auth/me",
+            "watchlist":       "/api/watchlist",
+            "portfolio":       "/api/portfolio",
+            "alerts_sub":      "/api/alerts/subscribe",
         },
     }
 

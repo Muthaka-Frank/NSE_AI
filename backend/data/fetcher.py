@@ -45,6 +45,16 @@ NSE_STOCKS = {
     "JUB":  {"name": "Jubilee Holdings",        "sector": "Insurance",          "yahoo": "JUB.NR"},
     "SBIC": {"name": "Stanbic Holdings",        "sector": "Banking",            "yahoo": "SBIC.NR"},
     "HFCK": {"name": "HF Group",               "sector": "Banking",            "yahoo": "HFCK.NR"},
+    "IMH":  {"name": "I&M Group PLC",           "sector": "Banking",            "yahoo": "IMH.NR"},
+    "DTK":  {"name": "Diamond Trust Bank Kenya","sector": "Banking",            "yahoo": "DTK.NR"},
+    "BRIT": {"name": "Britam Holdings PLC",     "sector": "Insurance",          "yahoo": "BRIT.NR"},
+    "CIC":  {"name": "CIC Insurance Group",     "sector": "Insurance",          "yahoo": "CIC.NR"},
+    "KEGN": {"name": "KenGen",                  "sector": "Energy",             "yahoo": "KEGN.NR"},
+    "TOTL": {"name": "TotalEnergies Marketing", "sector": "Energy",             "yahoo": "TOTL.NR"},
+    "CTUM": {"name": "Centum Investment Company","sector": "Investment",          "yahoo": "CTUM.NR"},
+    "UNGA": {"name": "Unga Group PLC",          "sector": "Manufacturing",      "yahoo": "UNGA.NR"},
+    "KUKZ": {"name": "Kakuzi PLC",              "sector": "Agricultural",      "yahoo": "KUKZ.NR"},
+    "SASN": {"name": "Sasini PLC",              "sector": "Agricultural",      "yahoo": "SASN.NR"},
 }
 
 NEWS_FEEDS = [
@@ -56,10 +66,13 @@ NEWS_FEEDS = [
 ]
 
 BASE_PRICES = {
-    "SCOM": 19.80, "EQTY": 52.00, "KCB": 42.50, "COOP": 13.20,
-    "EABL": 160.00, "BAT": 420.00, "KPLC": 2.30, "ABSA": 15.50,
-    "NCBA": 44.00,  "STND": 238.00, "BAMB": 40.00, "KENR": 18.00,
-    "JUB":  270.00, "SBIC": 115.00, "HFCK": 4.80,
+    "SCOM": 30.90, "EQTY": 72.00, "KCB": 67.50, "COOP": 31.85,
+    "EABL": 248.25, "BAT": 520.00, "KPLC": 15.50, "ABSA": 29.60,
+    "NCBA": 89.00,  "STND": 342.75, "BAMB": 54.00, "KENR": 3.30,
+    "JUB":  366.00, "SBIC": 270.00, "HFCK": 9.78,
+    "IMH":  21.00,  "DTK":  54.00,  "BRIT": 5.20,  "CIC":  2.20,
+    "KEGN": 2.30,   "TOTL": 18.00,  "CTUM": 9.00,  "UNGA": 17.00,
+    "KUKZ": 385.00, "SASN": 20.00,
 }
 
 # Simple TTL cache
@@ -147,6 +160,21 @@ def get_historical_data(ticker: str, period: str = "6mo") -> list:
     # 3. Fall back to deterministic mock
     if not data:
         data = _generate_mock_history(ticker)
+        # Scale mock history to match the latest live scraped price
+        try:
+            live_data = nse_scraper.get_price(ticker)
+            if live_data and live_data.get("price"):
+                live_price = live_data["price"]
+                mock_latest = data[-1]["close"]
+                if mock_latest > 0:
+                    scale = live_price / mock_latest
+                    for day in data:
+                        day["open"] = round(day["open"] * scale, 2)
+                        day["high"] = round(day["high"] * scale, 2)
+                        day["low"] = round(day["low"] * scale, 2)
+                        day["close"] = round(day["close"] * scale, 2)
+        except Exception as e:
+            logging.getLogger(__name__).error("Failed to scale mock history: %s", e)
 
     _cache_set(key, data, 900)
     return data

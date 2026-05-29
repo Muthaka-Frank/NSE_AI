@@ -7,6 +7,7 @@
 let allStocks   = [];
 let currentTicker  = 'SCOM';
 let currentPeriod  = '3mo';
+let watchlistTickers = new Set();
 
 // ── Boot ──────────────────────────────────────────────────────────────────
 function bootDashboard() {
@@ -16,7 +17,12 @@ function bootDashboard() {
   try { allStocks = MOCK.stocks; renderTicker(MOCK.stocks); } catch(e) { console.warn('ticker:', e); }
   try { renderTable(MOCK.stocks); } catch(e) { console.warn('table:', e); }
   try { _renderOverviewFromStocks(MOCK.stocks); } catch(e) { console.warn('overview:', e); }
-  try { populateChartSelect(); initChart(); updateChart(currentTicker, currentPeriod); } catch(e) { console.warn('chart:', e); }
+  try {
+    populateChartSelect();
+    populateWatchlistAndBuySelects();
+    initChart();
+    updateChart(currentTicker, currentPeriod);
+  } catch(e) { console.warn('chart:', e); }
   try { loadSignal(currentTicker); } catch(e) { console.warn('signal:', e); }
   try { bindChartControls(); bindTableSearch(); } catch(e) { console.warn('controls:', e); }
 
@@ -33,12 +39,38 @@ function bootDashboard() {
     try { renderTicker(data.stocks); } catch(e) {}
     try { renderTable(data.stocks); } catch(e) {}
     try { _renderOverviewFromStocks(data.stocks); } catch(e) {}
-    try { populateChartSelect(); updateChart(currentTicker, currentPeriod).then(() => loadSignal(currentTicker)); } catch(e) {}
+    try {
+      populateChartSelect();
+      populateWatchlistAndBuySelects();
+      updateChart(currentTicker, currentPeriod).then(() => loadSignal(currentTicker));
+    } catch(e) {}
+    try {
+      loadWatchlist();
+      loadPortfolio();
+      bindWatchlistAndPortfolioEvents();
+    } catch(e) { console.warn('watchlist/portfolio init error:', e); }
     try { startLiveUpdates(); } catch(e) {}
   }).catch(e => console.warn('stocks fetch:', e));
-
   // ── Step 5: Refresh news every 2 min ─────────────────────────────────
   setInterval(loadNews, 120_000);
+
+  // ── Step 6: Fallback Polling Loop (every 30s) when SSE is not Live ───
+  setInterval(async () => {
+    const badge = document.getElementById('live-update-badge');
+    const isLive = badge && (badge.classList.contains('live') || badge.textContent.includes('LIVE'));
+    if (!isLive) {
+      console.log('[Dashboard] SSE stream offline. Polling backend for fresh stock data...');
+      try {
+        const data = await api.getStocks();
+        if (data?.stocks?.length) {
+          allStocks = data.stocks;
+          updatePricesInPlace(data.stocks);
+        }
+      } catch (e) {
+        console.warn('Polling stocks failed:', e);
+      }
+    }
+  }, 30_000);
 }
 
 // ── Clock ─────────────────────────────────────────────────────────────────
@@ -203,11 +235,17 @@ async function loadSignal(ticker) {
 
 function renderSignalCard(d) {
   const isSignal = d.direction !== 'NO_SIGNAL';
+  const isStarred = watchlistTickers.has(d.ticker);
   return `
-    <div class="signal-direction ${d.direction}">${
-      d.direction === 'NO_SIGNAL' ? '⏸ No Signal' :
-      d.direction === 'BUY'  ? '↑ BUY'  : '↓ SELL'
-    }</div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+      <div class="signal-direction ${d.direction}">${
+        d.direction === 'NO_SIGNAL' ? '⏸ No Signal' :
+        d.direction === 'BUY'  ? '↑ BUY'  : '↓ SELL'
+      }</div>
+      <button class="star-btn" data-ticker="${d.ticker}" onclick="toggleWatchlist(event, '${d.ticker}')" style="background:rgba(255,255,255,0.05); border:1px solid var(--border-color); border-radius:8px; width:36px; height:36px; display:flex; align-items:center; justify-content:center; font-size:1.25rem; cursor:pointer; color:${isStarred ? '#ffd700' : 'var(--text-muted)'}; transition:all 0.2s;">
+        ${isStarred ? '★' : '☆'}
+      </button>
+    </div>
     <div class="signal-strength-badge ${d.signal_strength}">${d.signal_strength}</div>
     <div class="signal-conf">Confidence: <b>${d.confidence_pct || '—'}</b></div>
     <ul class="signal-reasons">
@@ -285,9 +323,15 @@ function renderTable(stocks) {
     const up  = s.change_pct >= 0;
     const src = s.data_source === 'yahoo_finance' ? 'yahoo_finance' : 'estimated';
     const srcBadge = _srcBadge(src, s.data_as_of);
+    const isStarred = watchlistTickers.has(s.ticker);
     return `
       <tr onclick="jumpToStock('${s.ticker}')" data-ticker="${s.ticker}">
-        <td class="table-ticker">${s.ticker}</td>
+        <td class="table-ticker" style="display:flex; align-items:center; gap:0.5rem;">
+          <span class="star-btn" data-ticker="${s.ticker}" onclick="toggleWatchlist(event, '${s.ticker}')" style="cursor:pointer; font-size:1.15rem; color:${isStarred ? '#ffd700' : 'var(--text-muted)'}; transition:all 0.2s;">
+            ${isStarred ? '★' : '☆'}
+          </span>
+          ${s.ticker}
+        </td>
         <td>${s.name}</td>
         <td>${s.sector}</td>
         <td class="table-price" id="price-${s.ticker}" data-value="${s.price}">
@@ -435,6 +479,14 @@ function updatePricesInPlace(stocks) {
   // Also refresh ticker tape and overview
   renderTicker(stocks);
   _refreshOverviewInPlace(stocks);
+
+  // Refresh Watchlist, Portfolio, Recommendations, and active Stock Signal
+  loadWatchlist().catch(e => console.warn('live update watchlist error:', e));
+  loadPortfolio().catch(e => console.warn('live update portfolio error:', e));
+  loadRecommendations().catch(e => console.warn('live update recs error:', e));
+  if (currentTicker) {
+    loadSignal(currentTicker).catch(e => console.warn('live update signal error:', e));
+  }
 }
 
 function _refreshOverviewInPlace(stocks) {
@@ -483,3 +535,216 @@ function _setBadge(state, timestamp) {
     badge.textContent = '↻ Offline — retrying';
   }
 }
+
+// ── Watchlist & Portfolio Functions ─────────────────────────────────────────
+
+function populateWatchlistAndBuySelects() {
+  const wSelect = document.getElementById('watchlist-select');
+  const bSelect = document.getElementById('buy-ticker-select');
+  if (!allStocks || !allStocks.length) return;
+  
+  const options = allStocks
+    .sort((a, b) => a.ticker.localeCompare(b.ticker))
+    .map(s => `<option value="${s.ticker}">${s.ticker} - ${s.name}</option>`)
+    .join('');
+    
+  if (wSelect) wSelect.innerHTML = `<option value="">Add stock…</option>` + options;
+  if (bSelect) bSelect.innerHTML = options;
+}
+
+async function loadWatchlist() {
+  const tbody = document.getElementById('watchlist-tbody');
+  if (!tbody) return;
+  
+  const watchlist = await api.getWatchlist();
+  watchlistTickers.clear();
+  
+  if (!watchlist || !watchlist.length) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:1.5rem; color:var(--text-muted);">Your watchlist is empty.</td></tr>`;
+    updateTableStars();
+    updateSpotlightStar();
+    return;
+  }
+  
+  watchlist.forEach(w => watchlistTickers.add(w.ticker.toUpperCase()));
+  
+  tbody.innerHTML = watchlist.map(w => {
+    const changePct = w.change_pct || 0.0;
+    return `
+      <tr>
+        <td style="font-weight:600; cursor:pointer;" onclick="jumpToStock('${w.ticker}')">${w.ticker}</td>
+        <td>KES ${(w.current_price || 0.0).toFixed(2)}</td>
+        <td class="${changePct >= 0 ? 'up' : 'down'}">
+          ${changePct >= 0 ? '▲' : '▼'} ${Math.abs(changePct).toFixed(2)}%
+        </td>
+        <td style="text-align:right;">
+          <button class="nav-dropdown-item danger" onclick="removeWatchlist('${w.ticker}')" style="display:inline-block; padding:0.25rem 0.5rem; font-size:0.8rem; border-radius:4px; border:1px solid var(--border-color); background:transparent; color:#ff4f4f; cursor:pointer;">✕ Remove</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+  
+  updateTableStars();
+  updateSpotlightStar();
+}
+
+async function loadPortfolio() {
+  const tbody = document.getElementById('portfolio-tbody');
+  if (!tbody) return;
+  
+  const data = await api.getPortfolio();
+  if (!data || !data.holdings || !data.holdings.length) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:1.5rem; color:var(--text-muted);">No holdings recorded.</td></tr>`;
+    document.getElementById('port-total-cost').textContent = 'KES 0.00';
+    document.getElementById('port-market-value').textContent = 'KES 0.00';
+    document.getElementById('port-profit-loss').textContent = 'KES 0.00 (0.00%)';
+    return;
+  }
+  
+  tbody.innerHTML = data.holdings.map(h => {
+    const pl = h.profit_loss || 0.0;
+    const plPct = h.profit_loss_pct || 0.0;
+    return `
+      <tr>
+        <td style="font-weight:600; cursor:pointer;" onclick="jumpToStock('${h.ticker}')">${h.ticker}</td>
+        <td>${h.quantity}</td>
+        <td>KES ${h.buy_price.toFixed(2)}</td>
+        <td>KES ${h.current_price.toFixed(2)}</td>
+        <td>KES ${h.market_value.toFixed(2)}</td>
+        <td class="${pl >= 0 ? 'up' : 'down'}">
+          ${pl >= 0 ? '+' : ''}${pl.toFixed(2)} (${plPct.toFixed(2)}%)
+        </td>
+        <td style="text-align:right;">
+          <button onclick="removePortfolio('${h.id}')" style="display:inline-block; padding:0.25rem 0.5rem; font-size:0.8rem; border-radius:4px; border:1px solid var(--border-color); background:transparent; color:#ff4f4f; cursor:pointer;">✕ Sell</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+  
+  const sum = data.summary || { total_cost: 0, total_value: 0, portfolio_profit_loss: 0, portfolio_profit_loss_pct: 0 };
+  document.getElementById('port-total-cost').textContent = `KES ${sum.total_cost.toLocaleString('en-KE', { minimumFractionDigits: 2 })}`;
+  document.getElementById('port-market-value').textContent = `KES ${sum.total_value.toLocaleString('en-KE', { minimumFractionDigits: 2 })}`;
+  
+  const plEl = document.getElementById('port-profit-loss');
+  plEl.textContent = `${sum.portfolio_profit_loss >= 0 ? '+' : ''}${sum.portfolio_profit_loss.toLocaleString('en-KE', { minimumFractionDigits: 2 })} (${sum.portfolio_profit_loss_pct.toFixed(2)}%)`;
+  plEl.className = sum.portfolio_profit_loss >= 0 ? 'up' : 'down';
+}
+
+function bindWatchlistAndPortfolioEvents() {
+  const select = document.getElementById('watchlist-select');
+  if (select) {
+    select.onchange = async () => {
+      const ticker = select.value;
+      if (!ticker) return;
+      const res = await api.addToWatchlist(ticker);
+      if (res) {
+        watchlistTickers.add(ticker.toUpperCase());
+        loadWatchlist();
+        select.value = '';
+      }
+    };
+  }
+  
+  // Backwards compatibility for the Add button if it still exists
+  const btnW = document.getElementById('btn-add-watchlist');
+  if (btnW) {
+    btnW.onclick = async () => {
+      const select = document.getElementById('watchlist-select');
+      const ticker = select.value;
+      if (!ticker) return;
+      const res = await api.addToWatchlist(ticker);
+      if (res) {
+        watchlistTickers.add(ticker.toUpperCase());
+        loadWatchlist();
+        select.value = '';
+      }
+    };
+  }
+  
+  const btnB = document.getElementById('btn-submit-buy');
+  if (btnB) {
+    btnB.onclick = async () => {
+      const ticker = document.getElementById('buy-ticker-select').value;
+      const qty = parseInt(document.getElementById('buy-qty-input').value);
+      const price = parseFloat(document.getElementById('buy-price-input').value);
+      
+      if (!ticker || isNaN(qty) || qty <= 0 || isNaN(price) || price <= 0) {
+        alert("Please specify valid quantity and buy price.");
+        return;
+      }
+      
+      const res = await api.addToPortfolio(ticker, price, qty);
+      if (res) {
+        document.getElementById('buy-modal').style.display = 'none';
+        document.getElementById('buy-qty-input').value = '';
+        document.getElementById('buy-price-input').value = '';
+        loadPortfolio();
+      }
+    };
+  }
+}
+
+async function removeWatchlist(ticker) {
+  const res = await api.removeFromWatchlist(ticker);
+  if (res) {
+    watchlistTickers.delete(ticker.toUpperCase());
+    loadWatchlist();
+  }
+}
+
+async function removePortfolio(id) {
+  if (confirm("Are you sure you want to sell/delete this portfolio holding?")) {
+    const res = await api.removeFromPortfolio(id);
+    if (res) loadPortfolio();
+  }
+}
+
+// ── Toggle Watchlist Star Helpers ───────────────────────────────────────────
+
+async function toggleWatchlist(event, ticker) {
+  if (event) event.stopPropagation();
+  ticker = ticker.toUpperCase();
+  const isStarred = watchlistTickers.has(ticker);
+  if (isStarred) {
+    const res = await api.removeFromWatchlist(ticker);
+    if (res) {
+      watchlistTickers.delete(ticker);
+      loadWatchlist();
+    }
+  } else {
+    const res = await api.addToWatchlist(ticker);
+    if (res) {
+      watchlistTickers.add(ticker);
+      loadWatchlist();
+    }
+  }
+}
+
+function updateTableStars() {
+  document.querySelectorAll('.star-btn').forEach(btn => {
+    const ticker = btn.getAttribute('data-ticker');
+    if (!ticker) return;
+    if (watchlistTickers.has(ticker.toUpperCase())) {
+      btn.innerHTML = '★';
+      btn.style.color = '#ffd700';
+    } else {
+      btn.innerHTML = '☆';
+      btn.style.color = 'var(--text-muted)';
+    }
+  });
+}
+
+function updateSpotlightStar() {
+  const btn = document.querySelector('#signal-card .star-btn');
+  if (!btn) return;
+  const ticker = btn.getAttribute('data-ticker');
+  if (!ticker) return;
+  if (watchlistTickers.has(ticker.toUpperCase())) {
+    btn.innerHTML = '★';
+    btn.style.color = '#ffd700';
+  } else {
+    btn.innerHTML = '☆';
+    btn.style.color = 'var(--text-muted)';
+  }
+}
+
