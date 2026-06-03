@@ -79,6 +79,7 @@ function startClock() {
   const tick = () => {
     const now = new Date();
     el.textContent = now.toLocaleTimeString('en-KE', { timeZone:'Africa/Nairobi', hour12:false }) + ' EAT';
+    updateMarketStatus();
   };
   tick();
   setInterval(tick, 1000);
@@ -87,6 +88,42 @@ function startClock() {
   if (dateEl) {
     dateEl.textContent = 'NSE · ' + new Date().toLocaleDateString('en-KE', { weekday:'long', year:'numeric', month:'long', day:'numeric', timeZone:'Africa/Nairobi' });
   }
+}
+
+function updateMarketStatus() {
+  const statusDot = document.getElementById('market-status-dot');
+  const statusText = document.getElementById('market-status-text');
+  if (!statusDot || !statusText) return;
+
+  const now = new Date();
+  // Get current time in Nairobi (EAT)
+  const nairobiTimeStr = now.toLocaleString('en-US', { timeZone: 'Africa/Nairobi' });
+  const eatNow = new Date(nairobiTimeStr);
+
+  const day = eatNow.getDay(); // 0 = Sunday, 6 = Saturday
+  const hour = eatNow.getHours();
+  const minute = eatNow.getMinutes();
+  const totalMinutes = hour * 60 + minute;
+
+  const isWeekend = (day === 0 || day === 6);
+  
+  let status = "CLOSED";
+  let color = "#ff4d6d"; // Red for closed
+  
+  if (!isWeekend) {
+    if (totalMinutes >= 540 && totalMinutes < 570) { // 09:00 AM to 09:30 AM EAT
+      status = "PRE-OPEN";
+      color = "#ffd700"; // Yellow for pre-open
+    } else if (totalMinutes >= 570 && totalMinutes < 900) { // 09:30 AM to 03:00 PM EAT
+      status = "OPEN";
+      color = "#00e5a0"; // Green for open
+    }
+  }
+
+  statusDot.style.background = color;
+  statusDot.style.boxShadow = `0 0 8px ${color}80`;
+  statusText.textContent = `Market ${status}`;
+  statusText.style.color = color;
 }
 
 // ── Ticker Tape ───────────────────────────────────────────────────────────
@@ -134,19 +171,22 @@ async function loadOverview() {
 }
 
 function _renderOverviewFromStocks(stocks) {
+  const grid = document.getElementById('overview-grid');
+  if (!grid) return;
+
   const gainers = stocks.filter(s => s.change_pct > 0).length;
   const losers  = stocks.filter(s => s.change_pct < 0).length;
   const avgChg  = stocks.reduce((a,s) => a + s.change_pct, 0) / stocks.length;
   const topGainer = [...stocks].sort((a,b) => b.change_pct - a.change_pct)[0];
   const topLoser  = [...stocks].sort((a,b) => a.change_pct - b.change_pct)[0];
 
-  document.getElementById('overview-grid').innerHTML = `
+  grid.innerHTML = `
     <div class="overview-card">
       <div class="overview-label">Market Sentiment</div>
       <div class="overview-value ${avgChg >= 0 ? 'up' : 'down'}">${avgChg >= 0 ? 'BULLISH' : 'BEARISH'}</div>
       <div class="overview-change ${avgChg >= 0 ? 'up' : 'down'}">Avg ${avgChg >= 0 ? '+' : ''}${avgChg.toFixed(2)}% today</div>
     </div>
-    <div class="overview-card">
+    <div class="overview-card" onclick="openGainersLosersModal()" style="cursor:pointer">
       <div class="overview-label">Gainers / Losers</div>
       <div class="overview-value up">${gainers}</div>
       <div class="overview-change down">↓ ${losers} stocks falling</div>
@@ -162,6 +202,53 @@ function _renderOverviewFromStocks(stocks) {
       <div class="overview-change down">▼ ${topLoser.change_pct.toFixed(2)}% · KES ${topLoser.price.toFixed(2)}</div>
     </div>
   `;
+}
+
+function openGainersLosersModal() {
+  try {
+    const modal = document.getElementById('gainers-losers-modal');
+    if (!modal) return;
+
+    const gainers = allStocks.filter(s => s.change_pct > 0).sort((a, b) => b.change_pct - a.change_pct);
+    const losers  = allStocks.filter(s => s.change_pct < 0).sort((a, b) => a.change_pct - b.change_pct);
+
+    document.getElementById('modal-gainers-count').textContent = gainers.length;
+    document.getElementById('modal-losers-count').textContent = losers.length;
+
+    const renderItem = (s) => {
+      const isUp = s.change_pct >= 0;
+      return `
+        <div onclick="jumpToStock('${s.ticker}'); document.getElementById('gainers-losers-modal').style.display='none';" 
+             style="display:flex; justify-content:space-between; align-items:center; padding:0.6rem 0.8rem; background:rgba(255,255,255,0.02); border:1px solid var(--border-color); border-radius:8px; cursor:pointer; transition:all 0.2s;"
+             onmouseover="this.style.background='rgba(255,255,255,0.06)'; this.style.borderColor='var(--border-light)';"
+             onmouseout="this.style.background='rgba(255,255,255,0.02)'; this.style.borderColor='var(--border-color)';">
+          <div style="display:flex; flex-direction:column; min-width: 0;">
+            <span style="font-weight:700; color:#fff; font-size:0.95rem;">${s.ticker}</span>
+            <span style="font-size:0.75rem; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${s.name}">${s.name}</span>
+          </div>
+          <div style="text-align:right; flex-shrink: 0;">
+            <div style="font-size:0.9rem; font-family:var(--font-mono); color:#fff; font-weight:600;">KES ${(s.price || 0).toFixed(2)}</div>
+            <div style="font-size:0.8rem; font-weight:600; color:${isUp ? 'var(--accent)' : '#ff4d6d'};">
+              ${isUp ? '▲' : '▼'} ${Math.abs(s.change_pct || 0).toFixed(2)}%
+            </div>
+          </div>
+        </div>
+      `;
+    };
+
+    document.getElementById('modal-gainers-list').innerHTML = gainers.length > 0
+      ? gainers.map(renderItem).join('')
+      : '<div style="text-align:center; color:var(--text-muted); padding:1rem; font-size:0.85rem;">No gainers today</div>';
+
+    document.getElementById('modal-losers-list').innerHTML = losers.length > 0
+      ? losers.map(renderItem).join('')
+      : '<div style="text-align:center; color:var(--text-muted); padding:1rem; font-size:0.85rem;">No losers today</div>';
+
+    modal.style.display = 'flex';
+  } catch (err) {
+    console.error("Error opening movers modal:", err);
+    alert("Error opening movers modal: " + err.message);
+  }
 }
 
 // ── AI Recommendations ────────────────────────────────────────────────────
@@ -496,36 +583,7 @@ function updatePricesInPlace(stocks) {
 }
 
 function _refreshOverviewInPlace(stocks) {
-  const gainers   = stocks.filter(s => s.change_pct > 0).length;
-  const losers    = stocks.filter(s => s.change_pct < 0).length;
-  const avgChg    = stocks.reduce((a, s) => a + s.change_pct, 0) / stocks.length;
-  const topGainer = [...stocks].sort((a, b) => b.change_pct - a.change_pct)[0];
-  const topLoser  = [...stocks].sort((a, b) => a.change_pct - b.change_pct)[0];
-  // Re-render the overview grid (it's fast and stateless)
-  const grid = document.getElementById('overview-grid');
-  if (!grid) return;
-  grid.innerHTML = `
-    <div class="overview-card">
-      <div class="overview-label">Market Sentiment</div>
-      <div class="overview-value ${avgChg >= 0 ? 'up' : 'down'}">${avgChg >= 0 ? 'BULLISH' : 'BEARISH'}</div>
-      <div class="overview-change ${avgChg >= 0 ? 'up' : 'down'}">Avg ${avgChg >= 0 ? '+' : ''}${avgChg.toFixed(2)}% today</div>
-    </div>
-    <div class="overview-card">
-      <div class="overview-label">Gainers / Losers</div>
-      <div class="overview-value up">${gainers}</div>
-      <div class="overview-change down">↓ ${losers} stocks falling</div>
-    </div>
-    <div class="overview-card" onclick="jumpToStock('${topGainer.ticker}')" style="cursor:pointer">
-      <div class="overview-label">Top Gainer</div>
-      <div class="overview-value up">${topGainer.ticker}</div>
-      <div class="overview-change up">▲ +${topGainer.change_pct.toFixed(2)}% · KES ${topGainer.price.toFixed(2)}</div>
-    </div>
-    <div class="overview-card" onclick="jumpToStock('${topLoser.ticker}')" style="cursor:pointer">
-      <div class="overview-label">Top Loser</div>
-      <div class="overview-value down">${topLoser.ticker}</div>
-      <div class="overview-change down">▼ ${topLoser.change_pct.toFixed(2)}% · KES ${topLoser.price.toFixed(2)}</div>
-    </div>
-  `;
+  _renderOverviewFromStocks(stocks);
 }
 
 function _setBadge(state, timestamp) {

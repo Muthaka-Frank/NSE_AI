@@ -61,9 +61,15 @@
 
     <!-- Market Overview -->
     <section class="section">
-      <div class="section-header">
-        <h2 class="section-title">Market Overview</h2>
-        <span class="section-sub" id="market-date">NSE • Nairobi, Kenya</span>
+      <div class="section-header" style="display: flex; justify-content: space-between; align-items: flex-end; width: 100%;">
+        <div>
+          <h2 class="section-title">Market Overview</h2>
+          <span class="section-sub" id="market-date">NSE • Nairobi, Kenya</span>
+        </div>
+        <div id="market-status-container" style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.02); padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border-color);">
+          <span class="market-status-dot" id="market-status-dot" style="width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: #888; transition: all 0.3s ease;"></span>
+          <span class="market-status-text" id="market-status-text" style="font-size: 0.8rem; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-muted);">Checking status…</span>
+        </div>
       </div>
       <div class="overview-grid" id="overview-grid">
         <div class="overview-card skeleton"></div>
@@ -251,9 +257,46 @@
     </div>
   </div>
 
+  <!-- Gainers & Losers Movers Modal -->
+  <div class="modal" id="gainers-losers-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000; align-items:center; justify-content:center; backdrop-filter: blur(4px);">
+    <div style="background:var(--bg-card); padding:2rem; border-radius:12px; border:1px solid var(--border-color); width:100%; max-width:600px; position:relative; box-shadow: var(--shadow-lg); display: flex; flex-direction: column; max-height: 80vh;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.8rem;">
+        <h3 style="margin:0; color:#fff; font-size:1.4rem;">Market movers today</h3>
+        <button onclick="document.getElementById('gainers-losers-modal').style.display='none'" style="background:transparent; border:none; color:var(--text-muted); font-size:1.25rem; cursor:pointer; padding:4px 8px; border-radius:6px;">✕</button>
+      </div>
+      
+      <div style="display:flex; gap:1.5rem; overflow-y:auto; flex: 1; padding-right:4px;">
+        <!-- Gainers Column -->
+        <div style="flex:1; display: flex; flex-direction: column;">
+          <h4 style="margin:0 0 0.8rem 0; color:var(--accent); display:flex; justify-content:space-between; align-items:center;">
+            <span>Gainers</span>
+            <span id="modal-gainers-count" style="font-size:0.8rem; background:rgba(0,229,160,0.1); padding:2px 8px; border-radius:10px; font-weight:600;">0</span>
+          </h4>
+          <div id="modal-gainers-list" style="display:flex; flex-direction:column; gap:0.5rem; overflow-y: auto; flex: 1;">
+            <!-- list of gainers -->
+          </div>
+        </div>
+        
+        <!-- Divider -->
+        <div style="width:1px; background:var(--border-color); align-self:stretch;"></div>
+        
+        <!-- Losers Column -->
+        <div style="flex:1; display: flex; flex-direction: column;">
+          <h4 style="margin:0 0 0.8rem 0; color:#ff4d6d; display:flex; justify-content:space-between; align-items:center;">
+            <span>Losers</span>
+            <span id="modal-losers-count" style="font-size:0.8rem; background:rgba(255,77,109,0.1); padding:2px 8px; border-radius:10px; font-weight:600;">0</span>
+          </h4>
+          <div id="modal-losers-list" style="display:flex; flex-direction:column; gap:0.5rem; overflow-y: auto; flex: 1;">
+            <!-- list of losers -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="js/api.js?v=4"></script>
   <script src="js/chart.js?v=2"></script>
-  <script src="js/app.js?v=9"></script>
+  <script src="js/app.js?v=12"></script>
   <script>
     // Register PWA service worker
     if ("serviceWorker" in navigator) {

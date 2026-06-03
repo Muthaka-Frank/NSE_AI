@@ -1,4 +1,4 @@
-const CACHE_NAME = "nse-ai-cache-v3";
+const CACHE_NAME = "nse-ai-cache-v5";
 const ASSETS = [
   "./",
   "./index.html",
@@ -16,6 +16,7 @@ const ASSETS = [
 
 // Install Event
 self.addEventListener("install", (e) => {
+  self.skipWaiting();
   e.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log("Caching PWA shell assets");
@@ -27,16 +28,19 @@ self.addEventListener("install", (e) => {
 // Activate Event
 self.addEventListener("activate", (e) => {
   e.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.map((key) => {
-          if (key !== CACHE_NAME) {
-            console.log("Clearing old PWA cache", key);
-            return caches.delete(key);
-          }
-        })
-      );
-    })
+    Promise.all([
+      caches.keys().then((keys) => {
+        return Promise.all(
+          keys.map((key) => {
+            if (key !== CACHE_NAME) {
+              console.log("Clearing old PWA cache", key);
+              return caches.delete(key);
+            }
+          })
+        );
+      }),
+      self.clients.claim()
+    ])
   );
 });
 
