@@ -297,7 +297,12 @@
         <ul class="signal-reasons">
           ${(pred.reasoning||[]).map(r=>`<li>${r}</li>`).join('')}
         </ul>
-        ${pred.price_target ? `<div style="margin-top:12px;font-size:13px;color:var(--text-muted)">Price Target: <b style="color:var(--accent);font-family:var(--font-mono)">KES ${pred.price_target}</b></div>` : ''}
+        ${pred.price_target ? `
+          <div style="margin-top:12px; font-size:13px; color:var(--text-muted); display:flex; justify-content:space-between; align-items:center;">
+            <div>Price Target: <b style="color:var(--accent); font-family:var(--font-mono)">KES ${pred.price_target}</b></div>
+            ${pred.timeframe ? `<div style="font-size:12px;">Expected within: <b style="color:var(--text-primary); font-family:var(--font-mono)">${pred.timeframe}</b></div>` : ''}
+          </div>
+        ` : ''}
         <div style="margin-top:10px;font-size:11px;color:var(--text-muted)">⚠️ Informational only. Not financial advice.</div>
       `;
     }

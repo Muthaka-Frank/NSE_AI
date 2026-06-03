@@ -6,7 +6,7 @@
 // ── State ─────────────────────────────────────────────────────────────────
 let allStocks   = [];
 let currentTicker  = 'SCOM';
-let currentPeriod  = '3mo';
+let currentPeriod  = '1mo';
 let watchlistTickers = new Set();
 
 // ── Boot ──────────────────────────────────────────────────────────────────
@@ -208,9 +208,12 @@ async function loadRecommendations() {
       <ul class="rec-reasoning">
         ${r.reasoning.slice(0,2).map(l => `<li>${l}</li>`).join('')}
       </ul>
-      <div class="rec-target">
-        <span class="rec-target-label">Price Target</span>
-        <span class="rec-target-value">KES ${r.price_target}</span>
+      <div class="rec-target" style="display:flex; flex-direction:column; align-items:flex-start; gap:4px; border-top:1px dashed var(--border-color); padding-top:8px;">
+        <div style="width:100%; display:flex; justify-content:space-between; align-items:baseline;">
+          <span class="rec-target-label">Price Target</span>
+          <span class="rec-target-value">KES ${r.price_target}</span>
+        </div>
+        ${r.timeframe ? `<span style="font-size:11px; color:var(--text-muted);">Est. Timeframe: <b>${r.timeframe}</b></span>` : ''}
       </div>
     </div>
   `).join('');
@@ -252,9 +255,12 @@ function renderSignalCard(d) {
       ${(d.reasoning || []).map(r => `<li>${r}</li>`).join('')}
     </ul>
     ${isSignal && d.price_target ? `
-      <div class="signal-target">
-        <div class="signal-target-label">Price Target</div>
-        <div class="signal-target-val">KES ${d.price_target}</div>
+      <div class="signal-target" style="display:flex; flex-direction:column; align-items:flex-start; gap:4px;">
+        <div style="width:100%; display:flex; justify-content:space-between; align-items:baseline;">
+          <div class="signal-target-label">Price Target</div>
+          <div class="signal-target-val">KES ${d.price_target}</div>
+        </div>
+        ${d.timeframe ? `<div class="signal-timeframe" style="font-size:12px; color:var(--text-muted); width:100%; text-align:right;">Expected within: <b>${d.timeframe}</b></div>` : ''}
       </div>` : ''}
     <div class="signal-disclaimer">⚠️ Informational only. Not financial advice.</div>
   `;

@@ -9,7 +9,6 @@ Parallel fetching with in-memory TTL cache.
 import logging
 import warnings
 import feedparser
-import yfinance as yf
 import pytz
 import random
 import time
@@ -19,13 +18,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import data.alpha_vantage as av
 import data.nse_scraper as nse_scraper
 
-# Suppress yfinance "possibly delisted" and "No data found" console noise.
-# These are expected for NSE tickers not listed on Yahoo Finance —
-# the fallback chain (AV → mock) handles them silently.
-logging.getLogger("yfinance").setLevel(logging.ERROR)
+# Suppress peewee logging warning noise.
 logging.getLogger("peewee").setLevel(logging.ERROR)
-warnings.filterwarnings("ignore", message=".*possibly delisted.*")
-warnings.filterwarnings("ignore", message=".*No data found.*")
 
 NAIROBI_TZ = pytz.timezone("Africa/Nairobi")
 
@@ -133,22 +127,8 @@ def get_historical_data(ticker: str, period: str = "6mo") -> list:
 
     data = []
 
-    # 1. Try Yahoo Finance
-    try:
-        tk   = yf.Ticker(meta["yahoo"])
-        hist = tk.history(period=period, interval="1d", timeout=8)
-        if not hist.empty:
-            data = [
-                {"date": str(idx.date()), "open": round(float(r["Open"]),2),
-                 "high": round(float(r["High"]),2), "low": round(float(r["Low"]),2),
-                 "close": round(float(r["Close"]),2), "volume": int(r["Volume"])}
-                for idx, r in hist.iterrows()
-            ]
-    except Exception:
-        pass
-
-    # 2. Try Alpha Vantage if Yahoo Finance failed
-    if not data and av.is_configured():
+    # 1. Try Alpha Vantage first for history if configured
+    if av.is_configured():
         outputsize = "full" if period in ("6mo", "1y") else "compact"
         av_data    = av.get_daily_history(meta["yahoo"], outputsize)
         if av_data:
@@ -159,7 +139,7 @@ def get_historical_data(ticker: str, period: str = "6mo") -> list:
 
     # 3. Fall back to deterministic mock
     if not data:
-        data = _generate_mock_history(ticker)
+        data = _generate_mock_history(ticker, period)
         # Scale mock history to match the latest live scraped price
         try:
             live_data = nse_scraper.get_price(ticker)
@@ -231,34 +211,9 @@ def clear_cache():
 
 
 def _fetch_single_stock(ticker: str, meta: dict) -> Optional[dict]:
-    """Yahoo Finance → NSE Scraper → Alpha Vantage → mock data."""
+    """NSE Scraper → Alpha Vantage → mock data."""
 
-    # 1. Try Yahoo Finance
-    try:
-        tk   = yf.Ticker(meta["yahoo"])
-        hist = tk.history(period="5d", interval="1d", timeout=8)
-        if not hist.empty:
-            latest     = hist.iloc[-1]
-            prev       = hist.iloc[-2] if len(hist) >= 2 else hist.iloc[-1]
-            change     = float(latest["Close"] - prev["Close"])
-            change_pct = (change / float(prev["Close"])) * 100 if float(prev["Close"]) else 0.0
-            return {
-                "ticker": ticker, "name": meta["name"], "sector": meta["sector"],
-                "price":  round(float(latest["Close"]), 2),
-                "open":   round(float(latest["Open"]), 2),
-                "high":   round(float(latest["High"]), 2),
-                "low":    round(float(latest["Low"]), 2),
-                "volume": int(latest["Volume"]),
-                "change": round(change, 2), "change_pct": round(change_pct, 2),
-                "currency": "KES",
-                "data_source": "yahoo_finance",
-                "data_as_of":  str(hist.index[-1].date()),
-                "timestamp":   datetime.now(NAIROBI_TZ).isoformat(),
-            }
-    except Exception:
-        pass
-
-    # 2. Try NSE scraper (real prices from public sources)
+    # 1. Try NSE scraper (real prices from public sources)
     scraped = nse_scraper.get_price(ticker)
     if scraped:
         return {
@@ -269,7 +224,7 @@ def _fetch_single_stock(ticker: str, meta: dict) -> Optional[dict]:
             **{k: scraped[k] for k in ("price", "change", "change_pct", "volume", "data_source")},
         }
 
-    # 3. Try Alpha Vantage (rate-limited free quota)
+    # 2. Try Alpha Vantage (rate-limited free quota)
     if av.is_configured():
         quote = av.get_quote(meta["yahoo"])
         if quote:
@@ -282,7 +237,7 @@ def _fetch_single_stock(ticker: str, meta: dict) -> Optional[dict]:
                 **quote,
             }
 
-    # 4. Deterministic mock data
+    # 3. Deterministic mock data
     return _fallback_stock(ticker, meta)
 
 
@@ -333,13 +288,13 @@ def _fallback_stock(ticker: str, meta: dict) -> dict:
     }
 
 
-def _generate_mock_history(ticker: str) -> list:
-    """Deterministic 180-day OHLCV walk — same result for same ticker+day."""
+def _generate_mock_history(ticker: str, period: str = "6mo") -> list:
+    """Deterministic OHLCV walk — same result for same ticker+day."""
     rng   = _seeded_rng(ticker)
     price = BASE_PRICES.get(ticker, 50.0)
     history = []
-    date    = datetime.now() - timedelta(days=180)
-    for _ in range(180):
+    date    = datetime.now() - timedelta(days=365)
+    for _ in range(365):
         date += timedelta(days=1)
         if date.weekday() >= 5:
             continue
@@ -353,4 +308,9 @@ def _generate_mock_history(ticker: str) -> list:
             "close":  round(price * rng.uniform(0.995, 1.005), 2),
             "volume": rng.randint(100_000, 5_000_000),
         })
-    return history
+
+    days_map = {"1mo": 30, "3mo": 90, "6mo": 180, "1y": 365}
+    days = days_map.get(period, 180)
+    cutoff = datetime.now() - timedelta(days=days)
+    cutoff_str = cutoff.strftime("%Y-%m-%d")
+    return [h for h in history if h["date"] >= cutoff_str]

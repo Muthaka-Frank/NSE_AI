@@ -89,6 +89,7 @@ def stock_prediction(ticker: str):
         "signal_strength": result.signal_strength,
         "price_target":    result.price_target,
         "risk_level":      result.risk_level,
+        "timeframe":       result.timeframe,
         "reasoning":       result.reasoning,
         "current_price":   info["price"],
         "disclaimer":      "AI signals are informational only. Not financial advice.",

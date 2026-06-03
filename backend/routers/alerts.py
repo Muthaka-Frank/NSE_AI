@@ -98,3 +98,37 @@ def broadcast_market_update(message: str, background_tasks: BackgroundTasks, cur
     # Queue the sending in background tasks to avoid blocking the API thread
     background_tasks.add_task(send_sms_via_africastalking, message, subscribers)
     return {"message": f"Broadcast queued in background for {len(subscribers)} subscribers"}
+
+
+def check_and_send_high_confidence_alert(ticker: str, direction: str, confidence: float, price_target: float, timeframe: str):
+    """Checks log to avoid duplicate daily sends, then broadcasts high-confidence alert to all subscribers."""
+    import datetime
+    today = datetime.datetime.now().strftime("%Y-%m-%d")
+    alert_key = f"{ticker}:{direction}:{today}"
+    
+    sent_log_path = os.path.join(os.path.dirname(__file__), "..", "tmp", "sent_alerts.log")
+    os.makedirs(os.path.dirname(sent_log_path), exist_ok=True)
+    
+    sent_keys = []
+    if os.path.exists(sent_log_path):
+        with open(sent_log_path, "r") as f:
+            sent_keys = [line.strip() for line in f if line.strip()]
+            
+    if alert_key in sent_keys:
+        return
+        
+    # Mark as sent
+    with open(sent_log_path, "a") as f:
+        f.write(f"{alert_key}\n")
+        
+    emoji = "🚀" if direction == "BUY" else "⚠️"
+    msg = (
+        f"NSE AI High-Confidence Alert! {emoji} {ticker} is predicted to {direction} with {confidence*100:.1f}% confidence. "
+        f"Target Price: KES {price_target:.2f} within {timeframe}. "
+        f"Please trade cautiously."
+    )
+    
+    subscribers = _load_subscribers()
+    if subscribers:
+        logger.info("Broadcasting high-confidence alert for %s: %s", ticker, msg)
+        send_sms_via_africastalking(msg, subscribers)

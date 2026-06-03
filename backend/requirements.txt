@@ -1,7 +1,6 @@
 fastapi==0.111.0
 uvicorn[standard]==0.30.1
 httpx==0.27.0
-yfinance==0.2.40
 feedparser==6.0.11
 apscheduler==3.10.4
 python-dotenv==1.0.1

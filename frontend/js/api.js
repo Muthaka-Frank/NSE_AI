@@ -97,7 +97,7 @@ const MOCK = {
       ticker:'SCOM', name:'Safaricom PLC', sector:'Telecommunications',
       price:19.80, change_pct:2.06, direction:'BUY', confidence:0.87,
       confidence_pct:'87.0%', signal_strength:'STRONG', price_target:21.38,
-      risk_level:'LOW', news_sentiment:'POSITIVE',
+      risk_level:'LOW', news_sentiment:'POSITIVE', timeframe:'5 to 7 days',
       reasoning:[
         'RSI 28.4 — oversold territory (bullish reversal signal)',
         'MA20 (19.42) above MA50 (18.91) — bullish crossover',
@@ -108,7 +108,7 @@ const MOCK = {
       ticker:'KCB', name:'KCB Group PLC', sector:'Banking',
       price:43.10, change_pct:1.41, direction:'BUY', confidence:0.78,
       confidence_pct:'78.0%', signal_strength:'MODERATE', price_target:46.55,
-      risk_level:'MEDIUM', news_sentiment:'NEUTRAL',
+      risk_level:'MEDIUM', news_sentiment:'NEUTRAL', timeframe:'8 to 12 days',
       reasoning:[
         'MACD above signal line — upward momentum building',
         'MA20 (42.80) above MA50 (41.20) — bullish crossover',
@@ -119,7 +119,7 @@ const MOCK = {
       ticker:'KPLC', name:'Kenya Power & Lighting', sector:'Energy',
       price:2.28, change_pct:1.33, direction:'BUY', confidence:0.74,
       confidence_pct:'74.0%', signal_strength:'MODERATE', price_target:2.46,
-      risk_level:'MEDIUM', news_sentiment:'POSITIVE',
+      risk_level:'MEDIUM', news_sentiment:'POSITIVE', timeframe:'14 to 20 days',
       reasoning:[
         'RSI 31.2 — approaching oversold territory',
         'Price below lower Bollinger Band — potential bounce',

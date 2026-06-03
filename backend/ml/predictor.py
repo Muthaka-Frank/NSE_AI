@@ -22,6 +22,7 @@ class PredictionResult:
     signal_strength: str    # "STRONG" | "MODERATE" | "WEAK" | "NONE"
     price_target: Optional[float] = None
     risk_level: str = "MEDIUM"
+    timeframe: Optional[str] = None
 
 
 def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResult] = None) -> PredictionResult:
@@ -125,8 +126,8 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
     bear_ratio = bear_signals / total
     raw_conf   = max(bull_ratio, bear_ratio)
 
-    # Normalise confidence to 0.5–0.95
-    confidence = round(min(0.95, 0.50 + (raw_conf - 0.50) * 0.9), 3)
+    # Normalise confidence to 0.5–0.99
+    confidence = round(min(0.99, 0.50 + (raw_conf - 0.50) * 0.98), 3)
 
     if confidence < CONFIDENCE_THRESHOLD:
         return PredictionResult(
@@ -154,6 +155,32 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
         "WEAK"
     )
 
+    # ── Expected Timeframe Calculation ──────────────────────────────────────
+    timeframe = None
+    if direction in ["BUY", "SELL"] and target is not None:
+        if len(closes) > 1:
+            pct_changes = np.diff(closes) / closes[:-1]
+            volatility = float(np.std(pct_changes))
+        else:
+            volatility = 0.02
+        volatility = max(0.005, volatility)
+        pct_distance = abs(target - current_price) / current_price
+        expected_days = pct_distance / (volatility * 1.2)
+        min_days = max(1, int(round(expected_days * 0.75)))
+        max_days = max(min_days + 1, int(round(expected_days * 1.25)))
+        if max_days > 30:
+            max_days = 30
+            min_days = min(20, min_days)
+        timeframe = f"{min_days} to {max_days} days"
+
+    # Send real-time high-confidence alerts if >= 99%
+    if confidence >= 0.99 and direction in ["BUY", "SELL"]:
+        try:
+            from routers.alerts import check_and_send_high_confidence_alert
+            check_and_send_high_confidence_alert(ticker, direction, confidence, target, timeframe)
+        except Exception:
+            pass
+
     return PredictionResult(
         ticker=ticker,
         direction=direction,
@@ -162,6 +189,7 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
         signal_strength=strength,
         price_target=target,
         risk_level=risk,
+        timeframe=timeframe,
     )
 
 
@@ -186,6 +214,7 @@ def score_all(stocks_data: list[dict]) -> list[dict]:
                 "price_target":    result.price_target,
                 "risk_level":      result.risk_level,
                 "reasoning":       result.reasoning[:3],
+                "timeframe":       result.timeframe,
             })
     return sorted(recommendations, key=lambda x: x["confidence"], reverse=True)
 

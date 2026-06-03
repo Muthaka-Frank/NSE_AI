@@ -53,6 +53,7 @@ def get_recommendations():
             "signal_strength": result.signal_strength,
             "price_target":    result.price_target,
             "risk_level":      result.risk_level,
+            "timeframe":       result.timeframe,
             "reasoning":       result.reasoning[:3],
             "news_sentiment":  sentiment.label if sentiment else "NEUTRAL",
         }
