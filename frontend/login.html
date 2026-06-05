@@ -137,12 +137,13 @@
 
       // Check for common origin mismatches that cause Error 400
       const currentOrigin = window.location.origin;
-      if (currentOrigin !== 'http://localhost:5500') {
+      const allowedOrigins = ['http://localhost:5500', 'http://localhost:3000'];
+      if (!allowedOrigins.includes(currentOrigin)) {
         const notice = document.getElementById('google-notice');
         notice.innerHTML = `⚠️ <strong>Origin Mismatch Detected!</strong><br><br>
           You are accessing this page from <code>${currentOrigin}</code>.<br>
           Google OAuth strictly requires the origin to match exactly what is configured in your Google Cloud Console.<br><br>
-          Please access the site via: <a href="http://localhost:5500/login.html">http://localhost:5500/login.html</a><br>
+          Please access the site via: <a href="http://localhost:5500/login.html">http://localhost:5500/login.html</a> or <a href="http://localhost:3000/login.html">http://localhost:3000/login.html</a><br>
           <em>(If you configured 127.0.0.1 in Google Console, you must use that instead)</em>`;
         notice.style.display = 'block';
         notice.style.borderColor = 'var(--red)';

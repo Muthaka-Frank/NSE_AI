@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Optional
 from ml.sentiment import SentimentResult
 
-CONFIDENCE_THRESHOLD = 0.72   # Minimum to issue a signal (configurable)
+CONFIDENCE_THRESHOLD = 0.95   # Minimum to issue a signal (configurable)
 SILENCE_LABEL = "NO_SIGNAL"
 
 
@@ -139,14 +139,17 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
             risk_level="UNKNOWN",
         )
 
-    # ── Build Final Signal ────────────────────────────────────────────────
+    # ── Target and Risk Calculation (Based on statistical standard deviation, non-speculative) ──
+    std = np.std(closes[-20:]) if len(closes) >= 20 else np.std(closes)
+    std = max(0.01 * current_price, std)
+
     if bull_signals > bear_signals:
         direction = "BUY"
-        target    = round(current_price * 1.08, 2)
+        target    = round(current_price + 2 * std, 2)
         risk      = "LOW" if confidence > 0.85 else "MEDIUM"
     else:
         direction = "SELL"
-        target    = round(current_price * 0.93, 2)
+        target    = round(current_price - 2 * std, 2)
         risk      = "MEDIUM" if confidence > 0.85 else "HIGH"
 
     strength = (
