@@ -13,10 +13,15 @@ let watchlistTickers = new Set();
 function bootDashboard() {
   startClock();
 
-  // ── Step 1: Render MOCK instantly so user sees content immediately ────
-  try { allStocks = MOCK.stocks; renderTicker(MOCK.stocks); } catch(e) { console.warn('ticker:', e); }
-  try { renderTable(MOCK.stocks); } catch(e) { console.warn('table:', e); }
-  try { _renderOverviewFromStocks(MOCK.stocks); } catch(e) { console.warn('overview:', e); }
+  // Load cached stock prices if available, else fall back to MOCK
+  const cachedStocks = localStorage.getItem('nse_stocks_cache');
+  const initialStocks = cachedStocks ? JSON.parse(cachedStocks) : MOCK.stocks;
+  allStocks = initialStocks;
+
+  // ── Step 1: Render cached/mock data instantly so user sees content immediately ────
+  try { renderTicker(initialStocks); } catch(e) { console.warn('ticker:', e); }
+  try { renderTable(initialStocks); } catch(e) { console.warn('table:', e); }
+  try { _renderOverviewFromStocks(initialStocks); } catch(e) { console.warn('overview:', e); }
   try {
     populateChartSelect();
     populateWatchlistAndBuySelects();
@@ -26,16 +31,45 @@ function bootDashboard() {
   try { loadSignal(currentTicker); } catch(e) { console.warn('signal:', e); }
   try { bindChartControls(); bindTableSearch(); } catch(e) { console.warn('controls:', e); }
 
+  // ── Step 1b: Render cached watchlist and portfolio instantly if available ────
+  try {
+    const cachedWatchlist = localStorage.getItem('nse_watchlist_cache');
+    if (cachedWatchlist) {
+      renderWatchlistFromData(JSON.parse(cachedWatchlist));
+    }
+  } catch(e) { console.warn('cached watchlist load:', e); }
+  try {
+    const cachedPortfolio = localStorage.getItem('nse_portfolio_cache');
+    if (cachedPortfolio) {
+      renderPortfolioFromData(JSON.parse(cachedPortfolio));
+    }
+  } catch(e) { console.warn('cached portfolio load:', e); }
+
   // ── Step 2: Load news immediately (fast — not Yahoo Finance) ─────────
+  // Try loading cached news first
+  try {
+    const cachedNews = localStorage.getItem('nse_news_cache');
+    if (cachedNews) {
+      renderNewsFromData(JSON.parse(cachedNews));
+    }
+  } catch(e) {}
   loadNews().catch(e => console.warn('news:', e));
 
   // ── Step 3: Load recommendations independently ───────────────────────
+  // Try loading cached recommendations first
+  try {
+    const cachedRecs = localStorage.getItem('nse_recs_cache');
+    if (cachedRecs) {
+      renderRecommendationsFromData(JSON.parse(cachedRecs));
+    }
+  } catch(e) {}
   loadRecommendations().catch(e => console.warn('recs:', e));
 
   // ── Step 4: Fetch real stock data, replace mock when ready ───────────
   api.getStocks().then(data => {
     if (!data?.stocks?.length) return;
     allStocks = data.stocks;
+    localStorage.setItem('nse_stocks_cache', JSON.stringify(data.stocks));
     try { renderTicker(data.stocks); } catch(e) {}
     try { renderTable(data.stocks); } catch(e) {}
     try { _renderOverviewFromStocks(data.stocks); } catch(e) {}
@@ -255,8 +289,16 @@ function openGainersLosersModal() {
 async function loadRecommendations() {
   const data = await api.getRecommendations();
   const recs = data?.recommendations || MOCK.recommendations;
+  if (data?.recommendations) {
+    localStorage.setItem('nse_recs_cache', JSON.stringify(recs));
+  }
+  renderRecommendationsFromData(recs);
+}
+
+function renderRecommendationsFromData(recs) {
   const grid = document.getElementById('recs-grid');
   const noSig = document.getElementById('no-signal-notice');
+  if (!grid || !noSig) return;
 
   if (recs.length === 0) {
     grid.innerHTML = '';
@@ -269,9 +311,11 @@ async function loadRecommendations() {
   const strong = recs.find(r => r.signal_strength === 'STRONG');
   if (strong) {
     const banner = document.getElementById('alerts-banner');
-    document.getElementById('alerts-text').textContent =
-      `${strong.ticker} — ${strong.name} shows a ${strong.signal_strength} BUY signal at ${strong.confidence_pct} confidence. Target: KES ${strong.price_target}`;
-    banner.style.display = 'flex';
+    if (banner) {
+      document.getElementById('alerts-text').textContent =
+        `${strong.ticker} — ${strong.name} shows a ${strong.signal_strength} BUY signal at ${strong.confidence_pct} confidence. Target: KES ${strong.price_target}`;
+      banner.style.display = 'flex';
+    }
   }
 
   grid.innerHTML = recs.slice(0, 6).map(r => `
@@ -309,17 +353,31 @@ async function loadRecommendations() {
 // ── AI Signal Panel ───────────────────────────────────────────────────────
 async function loadSignal(ticker) {
   const card = document.getElementById('signal-card');
-  card.innerHTML = '<div class="signal-loading">Analysing ' + ticker + '…</div>';
+  if (!card) return;
+
+  // Try loading from cache first
+  const cachedSignal = localStorage.getItem(`nse_signal_cache_${ticker}`);
+  if (cachedSignal) {
+    try {
+      card.innerHTML = renderSignalCard(JSON.parse(cachedSignal));
+    } catch(e) {}
+  } else {
+    card.innerHTML = '<div class="signal-loading">Analysing ' + ticker + '…</div>';
+  }
+
   const data = await api.getPrediction(ticker);
 
   if (!data) {
-    card.innerHTML = renderSignalCard({
-      direction: 'NO_SIGNAL', confidence: 0, confidence_pct: '—',
-      signal_strength: 'NONE', reasoning: ['Backend offline — using demo mode'],
-      price_target: null, risk_level: 'UNKNOWN', current_price: 0,
-    });
+    if (!cachedSignal) {
+      card.innerHTML = renderSignalCard({
+        direction: 'NO_SIGNAL', confidence: 0, confidence_pct: '—',
+        signal_strength: 'NONE', reasoning: ['Backend offline — using demo mode'],
+        price_target: null, risk_level: 'UNKNOWN', current_price: 0,
+      });
+    }
     return;
   }
+  localStorage.setItem(`nse_signal_cache_${ticker}`, JSON.stringify(data));
   card.innerHTML = renderSignalCard(data);
 }
 
@@ -378,6 +436,13 @@ function bindChartControls() {
 async function loadNews() {
   const data = await api.getNews();
   const articles = data?.articles || MOCK.news;
+  if (data?.articles) {
+    localStorage.setItem('nse_news_cache', JSON.stringify(articles));
+  }
+  renderNewsFromData(articles);
+}
+
+function renderNewsFromData(articles) {
   const grid = document.getElementById('news-grid');
   if (!grid) return;
 
@@ -617,10 +682,16 @@ function populateWatchlistAndBuySelects() {
 }
 
 async function loadWatchlist() {
+  const watchlist = await api.getWatchlist();
+  if (watchlist) {
+    localStorage.setItem('nse_watchlist_cache', JSON.stringify(watchlist));
+  }
+  renderWatchlistFromData(watchlist);
+}
+
+function renderWatchlistFromData(watchlist) {
   const tbody = document.getElementById('watchlist-tbody');
   if (!tbody) return;
-  
-  const watchlist = await api.getWatchlist();
   watchlistTickers.clear();
   
   if (!watchlist || !watchlist.length) {
@@ -653,10 +724,17 @@ async function loadWatchlist() {
 }
 
 async function loadPortfolio() {
+  const data = await api.getPortfolio();
+  if (data) {
+    localStorage.setItem('nse_portfolio_cache', JSON.stringify(data));
+  }
+  renderPortfolioFromData(data);
+}
+
+function renderPortfolioFromData(data) {
   const tbody = document.getElementById('portfolio-tbody');
   if (!tbody) return;
   
-  const data = await api.getPortfolio();
   if (!data || !data.holdings || !data.holdings.length) {
     tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:1.5rem; color:var(--text-muted);">No holdings recorded.</td></tr>`;
     document.getElementById('port-total-cost').textContent = 'KES 0.00';

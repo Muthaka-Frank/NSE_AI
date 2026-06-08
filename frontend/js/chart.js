@@ -88,9 +88,27 @@ function loadChartData(history) {
 }
 
 async function updateChart(ticker, period) {
+  const cacheKey = `nse_chart_cache_${ticker}_${period}`;
+  
+  // Try rendering cached history data first if available
+  const cachedData = localStorage.getItem(cacheKey);
+  if (cachedData) {
+    try {
+      loadChartData(JSON.parse(cachedData));
+    } catch(e) {
+      console.warn("Cached chart load failed", e);
+    }
+  }
+
   let data = await api.getHistory(ticker, period);
   if (!data || !data.data) {
-    data = { data: MOCK.generateHistory(ticker, period === '1mo' ? 30 : period === '3mo' ? 90 : period === '6mo' ? 180 : 365) };
+    if (!cachedData) {
+      data = { data: MOCK.generateHistory(ticker, period === '1mo' ? 30 : period === '3mo' ? 90 : period === '6mo' ? 180 : 365) };
+      loadChartData(data.data);
+    }
+    return;
   }
+  
+  localStorage.setItem(cacheKey, JSON.stringify(data.data));
   loadChartData(data.data);
 }

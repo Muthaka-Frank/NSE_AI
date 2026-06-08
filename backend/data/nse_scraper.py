@@ -24,7 +24,7 @@ _HEADERS = {
 
 # In-memory cache
 _PRICE_CACHE: dict = {}
-_CACHE_TTL = 300  # 5 minutes
+_CACHE_TTL = 30  # 30 seconds
 
 # Ticker mappings between backend tickers and Kwayisi tickers
 _TICKER_MAP = {
@@ -34,7 +34,7 @@ _TICKER_MAP = {
 
 # Cache for the whole scraped table to avoid fetching multiple times in parallel or quick succession
 _LAST_GLOBAL_FETCH = 0.0
-_GLOBAL_CACHE_TTL = 300  # 5 minutes
+_GLOBAL_CACHE_TTL = 30  # 30 seconds
 
 def _cached(ticker: str) -> Optional[dict]:
     entry = _PRICE_CACHE.get(ticker.upper())
@@ -315,3 +315,9 @@ def get_all_prices() -> dict[str, dict]:
         if cached:
             results[ticker] = cached
     return results
+
+
+def clear_cache():
+    global _LAST_GLOBAL_FETCH
+    _LAST_GLOBAL_FETCH = 0.0
+    _PRICE_CACHE.clear()

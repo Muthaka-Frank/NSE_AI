@@ -60,5 +60,13 @@ class TestScraperAndSignals(unittest.TestCase):
             self.assertGreater(pred.price_target, 0)
             self.assertIn(pred.risk_level, ["LOW", "MEDIUM", "HIGH"])
 
+    def test_get_historical_data_mock_fallback(self):
+        """Verify that get_historical_data executes without errors and falls back to mock."""
+        from data.fetcher import get_historical_data
+        data = get_historical_data("SCOM", "1mo")
+        self.assertIsNotNone(data)
+        self.assertGreater(len(data), 0)
+        self.assertIn("close", data[0])
+
 if __name__ == "__main__":
     unittest.main()

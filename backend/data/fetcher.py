@@ -15,7 +15,6 @@ import time
 from datetime import datetime, timedelta
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import data.alpha_vantage as av
 import data.nse_scraper as nse_scraper
 
 # Suppress peewee logging warning noise.
@@ -115,7 +114,7 @@ def get_stock_info(ticker: str) -> Optional[dict]:
 
 
 def get_historical_data(ticker: str, period: str = "6mo") -> list:
-    """Fetch OHLCV history. Yahoo Finance first, Alpha Vantage fallback."""
+    """Fetch OHLCV history from the local database or mock fallback."""
     ticker = ticker.upper()
     key    = f"history_{ticker}_{period}"
     cached = _cache_get(key)
@@ -127,15 +126,6 @@ def get_historical_data(ticker: str, period: str = "6mo") -> list:
 
     data = []
 
-    # 1. Try Alpha Vantage first for history if configured
-    if av.is_configured():
-        outputsize = "full" if period in ("6mo", "1y") else "compact"
-        av_data    = av.get_daily_history(meta["yahoo"], outputsize)
-        if av_data:
-            # Slice to approximate the requested period
-            days_map = {"1mo": 30, "3mo": 90, "6mo": 180, "1y": 365}
-            limit    = days_map.get(period, 180)
-            data     = av_data[-limit:]
 
     # 3. Fall back to deterministic mock
     if not data:
@@ -208,10 +198,11 @@ def get_news_feed(ticker_filter: Optional[str] = None) -> list:
 
 def clear_cache():
     _cache.clear()
+    nse_scraper.clear_cache()
 
 
 def _fetch_single_stock(ticker: str, meta: dict) -> Optional[dict]:
-    """NSE Scraper → Alpha Vantage → mock data."""
+    """NSE Scraper → mock fallback."""
 
     # 1. Try NSE scraper (real prices from public sources)
     scraped = nse_scraper.get_price(ticker)
@@ -230,18 +221,7 @@ def _fetch_single_stock(ticker: str, meta: dict) -> Optional[dict]:
             **{k: scraped[k] for k in ("price", "change", "change_pct", "volume", "data_source")},
         }
 
-    # 2. Try Alpha Vantage (rate-limited free quota)
-    if av.is_configured():
-        quote = av.get_quote(meta["yahoo"])
-        if quote:
-            return {
-                "ticker":  ticker,
-                "name":    meta["name"],
-                "sector":  meta["sector"],
-                "currency": "KES",
-                "timestamp": datetime.now(NAIROBI_TZ).isoformat(),
-                **quote,
-            }
+
 
     # 3. Deterministic mock data
     return _fallback_stock(ticker, meta)

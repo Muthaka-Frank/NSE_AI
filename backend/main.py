@@ -9,7 +9,6 @@ from dotenv import load_dotenv
 from routers import stocks, news, recommendations
 from routers import auth as auth_router
 from routers import watchlist, alerts
-import data.alpha_vantage as av
 from auth.database import init_db
 from data.scheduler import start_scheduler
 
@@ -77,14 +76,11 @@ def health():
 
 @app.get("/api/data-sources")
 def data_sources():
-    av_configured = av.is_configured()
-    av_quota      = av.remaining_calls() if av_configured else None
     return {
         "sources": {
-            "yahoo_finance":  {"active": True,  "description": "Yahoo Finance — 15-min delayed"},
-            "alpha_vantage":  {"active": av_configured, "quota": av_quota,
-                               "setup": "Add ALPHA_VANTAGE_API_KEY to .env" if not av_configured else None},
+            "nse_scraper":    {"active": True,  "description": "Kwayisi Scraper — Real-time live prices"},
+            "local_history":  {"active": True,  "description": "SQLite Database — Persistent daily history"},
             "estimated":      {"active": True,  "description": "Deterministic mock fallback"},
         },
-        "priority": ["yahoo_finance", "alpha_vantage", "estimated"],
+        "priority": ["nse_scraper", "local_history", "estimated"],
     }
