@@ -86,6 +86,13 @@ def get_all_stocks() -> list:
     cached = _cache_get("all_stocks")
     if cached:
         return cached
+
+    # Pre-fetch and cache prices globally to prevent parallel request storms on scraper fallbacks
+    try:
+        nse_scraper.get_all_prices()
+    except Exception as e:
+        logging.getLogger(__name__).warning("Batch scraper pre-fetch failed: %s", e)
+
     results = []
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = {executor.submit(_fetch_single_stock, t, m): t for t, m in NSE_STOCKS.items()}
@@ -198,7 +205,8 @@ def get_news_feed(ticker_filter: Optional[str] = None) -> list:
 
 def clear_cache():
     _cache.clear()
-    nse_scraper.clear_cache()
+    # Note: Do not clear nse_scraper's cache or reset its circuit breaker
+    # across regular pollings to protect the public scrape endpoints.
 
 
 def _fetch_single_stock(ticker: str, meta: dict) -> Optional[dict]:

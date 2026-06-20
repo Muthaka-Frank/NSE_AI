@@ -4,8 +4,9 @@ import json
 from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from data.fetcher import get_stock_info, get_all_stocks, get_historical_data, NSE_STOCKS, clear_cache
+from data.fetcher import get_stock_info, get_all_stocks, get_historical_data, NSE_STOCKS, clear_cache, get_news_feed
 from ml.predictor import predict
+from ml.sentiment import analyse
 
 router = APIRouter(prefix="/api/stocks", tags=["Stocks"])
 
@@ -79,8 +80,24 @@ def stock_prediction(ticker: str):
     info = get_stock_info(ticker.upper())
     if not info:
         raise HTTPException(status_code=404, detail=f"Ticker '{ticker}' not found.")
+        
+    # Aggregate sentiment from related news
+    news = get_news_feed()
+    related = [a for a in news if ticker.upper() in a.get("related_tickers", [])]
+    sentiment = None
+    if related:
+        texts      = [a["title"] + " " + a["summary"] for a in related[:5]]
+        sentiments = [analyse(t) for t in texts]
+        pos = sum(1 for s in sentiments if s.label == "POSITIVE")
+        neg = sum(1 for s in sentiments if s.label == "NEGATIVE")
+        avg = sum(s.score for s in sentiments) / len(sentiments)
+        from ml.sentiment import SentimentResult
+        label     = "POSITIVE" if pos > neg else ("NEGATIVE" if neg > pos else "NEUTRAL")
+        sentiment = SentimentResult(label=label, score=round(avg, 3),
+                                    reasoning=f"Based on {len(related)} news articles")
+
     history = get_historical_data(ticker.upper(), "3mo")
-    result  = predict(ticker.upper(), history)
+    result  = predict(ticker.upper(), history, sentiment)
     return {
         "ticker":          result.ticker,
         "direction":       result.direction,

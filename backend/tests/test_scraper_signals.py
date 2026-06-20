@@ -9,9 +9,41 @@ from data.nse_scraper import get_price, get_all_prices
 from ml.sentiment import analyse
 from ml.predictor import predict
 
+from unittest.mock import patch, MagicMock
+
 class TestScraperAndSignals(unittest.TestCase):
-    def test_scraper_all_prices(self):
+    @patch("requests.get")
+    def test_scraper_all_prices(self, mock_get):
         """Verify that get_all_prices returns active listings and expected key metrics."""
+        mock_html = """
+        <div class="t">
+          <table>
+            <tr>
+              <td><a href="/nse/SCOM">SCOM</a></td>
+              <td>Safaricom PLC</td>
+              <td>1,000,000</td>
+              <td>19.80</td>
+              <td>+0.40</td>
+            </tr>
+            <tr>
+              <td><a href="/nse/SCBK">SCBK</a></td>
+              <td>Standard Chartered</td>
+              <td>50,000</td>
+              <td>342.75</td>
+              <td>+2.00</td>
+            </tr>
+          </table>
+        </div>
+        """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = mock_html
+        mock_get.return_value = mock_response
+
+        # Clear cache first to force fresh scrape
+        from data.nse_scraper import clear_cache
+        clear_cache()
+
         prices = get_all_prices()
         self.assertIsNotNone(prices)
         self.assertGreater(len(prices), 0)

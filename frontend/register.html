@@ -96,6 +96,11 @@
     Sign up with Google
   </button>
 
+  <div class="google-notice" id="google-mismatch-notice" style="display:block; margin-top:10px; font-size:11px; background:rgba(0, 229, 160, 0.03); border:1px solid rgba(0, 229, 160, 0.15); color:var(--tm); border-radius:var(--rs); padding:10px 14px; line-height:1.5;">
+    💡 <strong>Getting Error 400: origin_mismatch?</strong><br>
+    Ensure both <code>http://localhost:3000</code> and <code>http://localhost:5500</code> are added to the <strong>Authorized JavaScript origins</strong> for this Client ID in your <a href="https://console.cloud.google.com" target="_blank" style="color:var(--accent);">Google Cloud Console</a>.
+  </div>
+
   <div class="divider"><span>or create with email</span></div>
 
   <form onsubmit="handleRegister(event)">

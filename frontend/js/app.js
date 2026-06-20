@@ -479,7 +479,7 @@ function renderTable(stocks) {
   if (!tbody) return;  // Not on a page with a stocks table
   tbody.innerHTML = stocks.map(s => {
     const up  = s.change_pct >= 0;
-    const src = s.data_source === 'yahoo_finance' ? 'yahoo_finance' : 'estimated';
+    const src = ['kwayisi_scrape', 'mystocks_scrape', 'investing_com'].includes(s.data_source) ? s.data_source : 'estimated';
     const srcBadge = _srcBadge(src, s.data_as_of);
     const isStarred = watchlistTickers.has(s.ticker);
     return `
@@ -510,12 +510,21 @@ function renderTable(stocks) {
 }
 
 function _srcBadge(source, asOf) {
-  if (source === 'yahoo_finance') {
-    const tip = asOf ? `Yahoo Finance · as of ${asOf} (15-min delay)` : 'Yahoo Finance';
-    return `<span class="data-src-badge live" title="${tip}">YF</span>`;
+  if (source === 'kwayisi_scrape') {
+    const tip = asOf ? `Kwayisi Live Scrape · as of ${asOf}` : 'Kwayisi Live Scrape';
+    return `<span class="data-src-badge live" style="background:var(--success); color:#fff;" title="${tip}">LIVE</span>`;
+  }
+  if (source === 'mystocks_scrape') {
+    const tip = asOf ? `myStocks Live Scrape · as of ${asOf}` : 'myStocks Live Scrape';
+    return `<span class="data-src-badge live" style="background:var(--success); color:#fff;" title="${tip}">LIVE</span>`;
+  }
+  if (source === 'investing_com') {
+    const tip = asOf ? `Investing.com · as of ${asOf}` : 'Investing.com';
+    return `<span class="data-src-badge live" style="background:var(--success); color:#fff;" title="${tip}">LIVE</span>`;
   }
   return `<span class="data-src-badge est" title="Estimated · no live feed available">EST</span>`;
 }
+
 
 async function fetchSignalBadge(ticker) {
   const el = document.getElementById(`sig-${ticker}`);
