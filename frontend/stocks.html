@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
   <link rel="stylesheet" href="css/style.css" />
+  <script src="js/auth.js"></script>
   <style>
     .stock-detail-modal {
       display: none; position: fixed; inset: 0; z-index: 200;
@@ -72,6 +73,7 @@
       <a href="stocks.html" class="nav-link active">All Stocks</a>
     </div>
     <div class="nav-meta">
+      <div id="nav-user-slot"></div>
       <div class="live-indicator"><span class="live-dot"></span>LIVE</div>
       <div class="nav-time" id="nav-time">--:--:-- EAT</div>
     </div>
@@ -142,6 +144,45 @@
     let modalChart = null;
 
     document.addEventListener('DOMContentLoaded', async () => {
+      // Auth guard — redirect to login if not authenticated
+      if (!auth.requireAuth()) return;
+
+      // Inject user dropdown into navbar
+      (function injectUser() {
+        const user = auth.getUser();
+        if (!user) return;
+        const slot = document.getElementById('nav-user-slot');
+        if (!slot) return;
+        const initials = user.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+        slot.innerHTML = `
+          <div class="nav-user" id="nav-user-btn">
+            ${user.avatar_url
+              ? `<img src="${user.avatar_url}" class="nav-avatar" alt="${user.name}" />`
+              : `<div class="nav-avatar-initials">${initials}</div>`}
+            <span class="nav-user-name">${user.name.split(' ')[0]}</span>
+            <span class="nav-chevron">▼</span>
+            <div class="nav-dropdown">
+              <div class="nav-dropdown-header">
+                <div class="nav-dropdown-name">${user.name}</div>
+                <div class="nav-dropdown-email">${user.email || ''}</div>
+              </div>
+              <div class="nav-dropdown-divider"></div>
+              <button class="nav-dropdown-item danger" onclick="auth.logout()">
+                <span>↩</span> Sign Out
+              </button>
+            </div>
+          </div>`;
+
+        // Toggle dropdown on click
+        const btn = document.getElementById('nav-user-btn');
+        btn.addEventListener('click', e => {
+          e.stopPropagation();
+          btn.classList.toggle('open');
+        });
+        // Close when clicking anywhere else
+        document.addEventListener('click', () => btn.classList.remove('open'));
+      })();
+
       // Clock
       const tick = () => {
         document.getElementById('nav-time').textContent =

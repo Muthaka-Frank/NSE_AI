@@ -1,0 +1,422 @@
+{
+    "SCOM": {
+        "name": "Safaricom PLC",
+        "sector": "Telecommunications",
+        "yahoo": "SCOM.NR",
+        "base_price": 30.9
+    },
+    "EQTY": {
+        "name": "Equity Group Holdings",
+        "sector": "Banking",
+        "yahoo": "EQTY.NR",
+        "base_price": 72.0
+    },
+    "KCB": {
+        "name": "KCB Group PLC",
+        "sector": "Banking",
+        "yahoo": "KCB.NR",
+        "base_price": 67.5
+    },
+    "COOP": {
+        "name": "Co-operative Bank",
+        "sector": "Banking",
+        "yahoo": "COOP.NR",
+        "base_price": 31.85
+    },
+    "EABL": {
+        "name": "East African Breweries",
+        "sector": "Consumer Staples",
+        "yahoo": "EABL.NR",
+        "base_price": 248.25
+    },
+    "BAT": {
+        "name": "BAT Kenya",
+        "sector": "Consumer Staples",
+        "yahoo": "BAT.NR",
+        "base_price": 520.0
+    },
+    "KPLC": {
+        "name": "Kenya Power & Lighting",
+        "sector": "Energy",
+        "yahoo": "KPLC.NR",
+        "base_price": 15.5
+    },
+    "ABSA": {
+        "name": "Absa Bank Kenya",
+        "sector": "Banking",
+        "yahoo": "ABSA.NR",
+        "base_price": 29.6
+    },
+    "NCBA": {
+        "name": "NCBA Group PLC",
+        "sector": "Banking",
+        "yahoo": "NCBA.NR",
+        "base_price": 89.0
+    },
+    "STND": {
+        "name": "Standard Chartered Kenya",
+        "sector": "Banking",
+        "yahoo": "SCBK.NR",
+        "base_price": 342.75
+    },
+    "BAMB": {
+        "name": "Bamburi Cement",
+        "sector": "Manufacturing",
+        "yahoo": "BAMB.NR",
+        "base_price": 54.0
+    },
+    "KENR": {
+        "name": "Kenya Re-Insurance",
+        "sector": "Insurance",
+        "yahoo": "KENR.NR",
+        "base_price": 3.3
+    },
+    "JUB": {
+        "name": "Jubilee Holdings",
+        "sector": "Insurance",
+        "yahoo": "JUB.NR",
+        "base_price": 366.0
+    },
+    "SBIC": {
+        "name": "Stanbic Holdings",
+        "sector": "Banking",
+        "yahoo": "SBIC.NR",
+        "base_price": 270.0
+    },
+    "HFCK": {
+        "name": "HF Group",
+        "sector": "Banking",
+        "yahoo": "HFCK.NR",
+        "base_price": 9.78
+    },
+    "IMH": {
+        "name": "I&M Group PLC",
+        "sector": "Banking",
+        "yahoo": "IMH.NR",
+        "base_price": 21.0
+    },
+    "DTK": {
+        "name": "Diamond Trust Bank Kenya",
+        "sector": "Banking",
+        "yahoo": "DTK.NR",
+        "base_price": 54.0
+    },
+    "BRIT": {
+        "name": "Britam Holdings PLC",
+        "sector": "Insurance",
+        "yahoo": "BRIT.NR",
+        "base_price": 5.2
+    },
+    "CIC": {
+        "name": "CIC Insurance Group",
+        "sector": "Insurance",
+        "yahoo": "CIC.NR",
+        "base_price": 2.2
+    },
+    "KEGN": {
+        "name": "KenGen",
+        "sector": "Energy",
+        "yahoo": "KEGN.NR",
+        "base_price": 2.3
+    },
+    "TOTL": {
+        "name": "TotalEnergies Marketing",
+        "sector": "Energy",
+        "yahoo": "TOTL.NR",
+        "base_price": 18.0
+    },
+    "CTUM": {
+        "name": "Centum Investment Company",
+        "sector": "Investment",
+        "yahoo": "CTUM.NR",
+        "base_price": 9.0
+    },
+    "UNGA": {
+        "name": "Unga Group PLC",
+        "sector": "Manufacturing",
+        "yahoo": "UNGA.NR",
+        "base_price": 17.0
+    },
+    "KUKZ": {
+        "name": "Kakuzi PLC",
+        "sector": "Agricultural",
+        "yahoo": "KUKZ.NR",
+        "base_price": 385.0
+    },
+    "SASN": {
+        "name": "Sasini PLC",
+        "sector": "Agricultural",
+        "yahoo": "SASN.NR",
+        "base_price": 20.0
+    },
+    "FMLY": {
+        "name": "Family Bank Limited",
+        "sector": "Banking",
+        "yahoo": "FMLY.NR",
+        "base_price": 18.0
+    },
+    "ALP": {
+        "name": "ALP Real Estate Investment Trust",
+        "sector": "Investment",
+        "yahoo": "ALP.NR",
+        "base_price": 1.02
+    },
+    "AMAC": {
+        "name": "Africa Mega Agricorp",
+        "sector": "Investment",
+        "yahoo": "AMAC.NR",
+        "base_price": 110.75
+    },
+    "ARM": {
+        "name": "ARM Cement Ltd",
+        "sector": "Manufacturing",
+        "yahoo": "ARM.NR",
+        "base_price": 5.5
+    },
+    "BKG": {
+        "name": "BK Group Plc",
+        "sector": "Investment",
+        "yahoo": "BKG.NR",
+        "base_price": 53.25
+    },
+    "BOC": {
+        "name": "BOC Kenya Ltd",
+        "sector": "Investment",
+        "yahoo": "BOC.NR",
+        "base_price": 167.0
+    },
+    "CABL": {
+        "name": "East African Cables",
+        "sector": "Investment",
+        "yahoo": "CABL.NR",
+        "base_price": 1.71
+    },
+    "CARB": {
+        "name": "Carbacid Investments",
+        "sector": "Manufacturing",
+        "yahoo": "CARB.NR",
+        "base_price": 29.95
+    },
+    "CGEN": {
+        "name": "Car and General Kenya Ltd",
+        "sector": "Investment",
+        "yahoo": "CGEN.NR",
+        "base_price": 102.75
+    },
+    "CRWN": {
+        "name": "Crown Paints Kenya Ltd",
+        "sector": "Investment",
+        "yahoo": "CRWN.NR",
+        "base_price": 61.75
+    },
+    "DCON": {
+        "name": "Deacons East Africa",
+        "sector": "Investment",
+        "yahoo": "DCON.NR",
+        "base_price": 0.45
+    },
+    "EGAD": {
+        "name": "Eaagads Ltd",
+        "sector": "Investment",
+        "yahoo": "EGAD.NR",
+        "base_price": 29.7
+    },
+    "EVRD": {
+        "name": "Eveready East Africa Ltd",
+        "sector": "Investment",
+        "yahoo": "EVRD.NR",
+        "base_price": 1.12
+    },
+    "FTGH": {
+        "name": "Flame Tree Group Holdings",
+        "sector": "Investment",
+        "yahoo": "FTGH.NR",
+        "base_price": 1.92
+    },
+    "GLD": {
+        "name": "Absa NewGold ETF",
+        "sector": "Investment",
+        "yahoo": "GLD.NR",
+        "base_price": 5055.0
+    },
+    "HAFR": {
+        "name": "Home Afrika Ltd",
+        "sector": "Investment",
+        "yahoo": "HAFR.NR",
+        "base_price": 1.32
+    },
+    "HBE": {
+        "name": "Homeboyz Entertainment",
+        "sector": "Investment",
+        "yahoo": "HBE.NR",
+        "base_price": 4.66
+    },
+    "KAPC": {
+        "name": "Kapchorua Tea Company Ltd",
+        "sector": "Agricultural",
+        "yahoo": "KAPC.NR",
+        "base_price": 296.5
+    },
+    "KPC": {
+        "name": "Kenya Pipeline Company",
+        "sector": "Investment",
+        "yahoo": "KPC.NR",
+        "base_price": 9.08
+    },
+    "KPLC-P4": {
+        "name": "Kenya Power 4% Preference Shares",
+        "sector": "Energy",
+        "yahoo": "KPLC-P4.NR",
+        "base_price": 5.0
+    },
+    "KPLC-P7": {
+        "name": "Kenya Power 7% Preference Shares",
+        "sector": "Energy",
+        "yahoo": "KPLC-P7.NR",
+        "base_price": 6.0
+    },
+    "KQ": {
+        "name": "Kenya Airways Ltd",
+        "sector": "Investment",
+        "yahoo": "KQ.NR",
+        "base_price": 5.46
+    },
+    "KURV": {
+        "name": "Kurwitu Ventures Ltd",
+        "sector": "Investment",
+        "yahoo": "KURV.NR",
+        "base_price": 1500.0
+    },
+    "LAPR": {
+        "name": "Laptrust Imara Income-REIT",
+        "sector": "Investment",
+        "yahoo": "LAPR.NR",
+        "base_price": 20.0
+    },
+    "LBTY": {
+        "name": "Liberty Kenya Holdings Ltd",
+        "sector": "Investment",
+        "yahoo": "LBTY.NR",
+        "base_price": 9.42
+    },
+    "LIMT": {
+        "name": "Limuru Tea Company Ltd",
+        "sector": "Agricultural",
+        "yahoo": "LIMT.NR",
+        "base_price": 493.75
+    },
+    "LKL": {
+        "name": "Longhorn Publishers Ltd",
+        "sector": "Investment",
+        "yahoo": "LKL.NR",
+        "base_price": 2.96
+    },
+    "MSC": {
+        "name": "Mumias Sugar Company Ltd",
+        "sector": "Investment",
+        "yahoo": "MSC.NR",
+        "base_price": 0.28
+    },
+    "NBV": {
+        "name": "Nairobi Business Ventures Ltd",
+        "sector": "Investment",
+        "yahoo": "NBV.NR",
+        "base_price": 1.25
+    },
+    "NMG": {
+        "name": "Nation Media Group",
+        "sector": "Investment",
+        "yahoo": "NMG.NR",
+        "base_price": 13.2
+    },
+    "NSE": {
+        "name": "Nairobi Securities Exchange Ltd",
+        "sector": "Investment",
+        "yahoo": "NSE.NR",
+        "base_price": 19.55
+    },
+    "OCH": {
+        "name": "Olympia Capital Holdings Ltd",
+        "sector": "Investment",
+        "yahoo": "OCH.NR",
+        "base_price": 7.06
+    },
+    "PORT": {
+        "name": "East African Portland Cement",
+        "sector": "Manufacturing",
+        "yahoo": "PORT.NR",
+        "base_price": 91.5
+    },
+    "SCAN": {
+        "name": "ScanGroup Ltd",
+        "sector": "Investment",
+        "yahoo": "SCAN.NR",
+        "base_price": 2.17
+    },
+    "SGL": {
+        "name": "Standard Group Ltd",
+        "sector": "Investment",
+        "yahoo": "SGL.NR",
+        "base_price": 5.94
+    },
+    "SKL": {
+        "name": "Shri Krishana Overseas Ltd",
+        "sector": "Investment",
+        "yahoo": "SKL.NR",
+        "base_price": 9.06
+    },
+    "SLAM": {
+        "name": "Sanlam Kenya Plc",
+        "sector": "Investment",
+        "yahoo": "SLAM.NR",
+        "base_price": 7.7
+    },
+    "SMER": {
+        "name": "Sameer Africa Plc",
+        "sector": "Investment",
+        "yahoo": "SMER.NR",
+        "base_price": 14.65
+    },
+    "SMWF": {
+        "name": "Satrix MSCI World Feeder ETF",
+        "sector": "Investment",
+        "yahoo": "SMWF.NR",
+        "base_price": 936.0
+    },
+    "TCL": {
+        "name": "TransCentury Plc",
+        "sector": "Investment",
+        "yahoo": "TCL.NR",
+        "base_price": 1.12
+    },
+    "TPSE": {
+        "name": "TPS Eastern Africa Serena Ltd",
+        "sector": "Investment",
+        "yahoo": "TPSE.NR",
+        "base_price": 15.6
+    },
+    "UCHM": {
+        "name": "Uchumi Supermarket Ltd",
+        "sector": "Investment",
+        "yahoo": "UCHM.NR",
+        "base_price": 1.78
+    },
+    "UMME": {
+        "name": "Umeme Ltd",
+        "sector": "Investment",
+        "yahoo": "UMME.NR",
+        "base_price": 7.56
+    },
+    "WTK": {
+        "name": "Williamson Tea Kenya Ltd",
+        "sector": "Agricultural",
+        "yahoo": "WTK.NR",
+        "base_price": 130.5
+    },
+    "XPRS": {
+        "name": "Express Kenya Ltd",
+        "sector": "Investment",
+        "yahoo": "XPRS.NR",
+        "base_price": 7.0
+    }
+}

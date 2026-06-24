@@ -29,7 +29,7 @@ _HEADERS = {
 
 # In-memory cache
 _PRICE_CACHE: dict = {}
-_CACHE_TTL = 30  # 30 seconds
+_CACHE_TTL = 300  # 5 minutes
 
 # Ticker mappings between backend tickers and Kwayisi/myStocks tickers
 _TICKER_MAP = {
@@ -39,7 +39,7 @@ _TICKER_MAP = {
 
 # Cache for the whole scraped table to avoid fetching multiple times in parallel or quick succession
 _LAST_GLOBAL_FETCH = 0.0
-_GLOBAL_CACHE_TTL = 30  # 30 seconds
+_GLOBAL_CACHE_TTL = 300  # 5 minutes
 
 def _cached(ticker: str) -> Optional[dict]:
     entry = _PRICE_CACHE.get(ticker.upper())
@@ -139,6 +139,12 @@ def _scrape_kwayisi() -> dict[str, dict]:
             rev_map = {v: k for k, v in _TICKER_MAP.items()}
             local_alias = rev_map.get(kwayisi_ticker)
 
+            # If ticker is a new listing, register it dynamically
+            if kwayisi_ticker not in _TRACKED_TICKERS and (not local_alias or local_alias not in _TRACKED_TICKERS):
+                company_name = cells[1].get_text(strip=True)
+                logger.info("New listing detected: %s (%s)", kwayisi_ticker, company_name)
+                add_new_stock(kwayisi_ticker, company_name, price=price)
+
             item = _store(kwayisi_ticker, price, change, change_pct, volume, source="kwayisi_scrape")
             results[kwayisi_ticker] = item
             if local_alias:
@@ -170,6 +176,7 @@ _INVESTING_IDS = {
 }
 
 _INVESTING_DOWN_UNTIL = 0.0
+_MYSTOCKS_DOWN_UNTIL = 0.0
 
 def _check_investing_reachable() -> bool:
     """Check if Investing.com is reachable by sending a request to SCOM page."""
@@ -230,11 +237,7 @@ def _scrape_all_investing_parallel():
 
 # ── Source 3: myStocks Ticker-by-Ticker Fallback ──────────────────────────────
 _MYSTOCKS_URL = "https://live.mystocks.co.ke/stock="
-_TRACKED_TICKERS = [
-    "SCOM", "EQTY", "KCB", "COOP", "EABL", "BAT", "KPLC", "ABSA", "NCBA", "STND",
-    "BAMB", "KENR", "JUB", "SBIC", "HFCK", "IMH", "DTK", "BRIT", "CIC", "KEGN",
-    "TOTL", "CTUM", "UNGA", "KUKZ", "SASN"
-]
+from data.stocks_registry import _TRACKED_TICKERS, add_new_stock
 
 _NAIROBI_TZ = pytz.timezone("Africa/Nairobi")
 
@@ -291,9 +294,17 @@ def _scrape_mystocks() -> dict[str, dict]:
     from concurrent.futures import ThreadPoolExecutor, as_completed
     import re
     
+    global _MYSTOCKS_DOWN_UNTIL
+    now = time.time()
+    if now < _MYSTOCKS_DOWN_UNTIL:
+        return {}
+        
     results = {}
+    failures = 0
     
     def fetch_single(ticker):
+        # Polite throttling delay
+        time.sleep(0.25)
         mystocks_ticker = _TICKER_MAP.get(ticker, ticker)
         url = f"{_MYSTOCKS_URL}{mystocks_ticker}"
         try:
@@ -327,8 +338,8 @@ def _scrape_mystocks() -> dict[str, dict]:
             logger.debug("myStocks scrape for %s failed: %s", ticker, e)
         return None
 
-    # Fetch all in parallel using thread pool
-    with ThreadPoolExecutor(max_workers=8) as executor:
+    # Fetch with very low concurrency to be polite and prevent IP blocks
+    with ThreadPoolExecutor(max_workers=2) as executor:
         futures = {executor.submit(fetch_single, t): t for t in _TRACKED_TICKERS}
         for future in as_completed(futures):
             res = future.result()
@@ -336,7 +347,14 @@ def _scrape_mystocks() -> dict[str, dict]:
                 ticker, price_val, change_val, change_pct = res
                 item = _store(ticker, price_val, change_val, change_pct, volume=0, source="mystocks_scrape")
                 results[ticker] = item
+            else:
+                failures += 1
                 
+    # If a significant number of requests failed, trigger the circuit breaker
+    if failures > 6:
+        logger.warning("myStocks fallback is experiencing failures (%d failed). Activating circuit breaker for 5 minutes.", failures)
+        _MYSTOCKS_DOWN_UNTIL = time.time() + 300
+
     if results:
         global _LAST_GLOBAL_FETCH
         _LAST_GLOBAL_FETCH = time.time()
@@ -489,8 +507,9 @@ def get_all_prices() -> dict[str, dict]:
 
 
 def clear_cache():
-    global _LAST_GLOBAL_FETCH, _KWAYISI_DOWN_UNTIL, _INVESTING_DOWN_UNTIL
+    global _LAST_GLOBAL_FETCH, _KWAYISI_DOWN_UNTIL, _INVESTING_DOWN_UNTIL, _MYSTOCKS_DOWN_UNTIL
     _LAST_GLOBAL_FETCH = 0.0
     _KWAYISI_DOWN_UNTIL = 0.0
     _INVESTING_DOWN_UNTIL = 0.0
+    _MYSTOCKS_DOWN_UNTIL = 0.0
     _PRICE_CACHE.clear()

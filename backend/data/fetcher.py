@@ -16,39 +16,20 @@ from datetime import datetime, timedelta
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import data.nse_scraper as nse_scraper
+from bs4 import BeautifulSoup
+
+def clean_html(text: str) -> str:
+    if not text:
+        return ""
+    # Parse HTML and extract text
+    return BeautifulSoup(text, "html.parser").get_text()
 
 # Suppress peewee logging warning noise.
 logging.getLogger("peewee").setLevel(logging.ERROR)
 
 NAIROBI_TZ = pytz.timezone("Africa/Nairobi")
 
-NSE_STOCKS = {
-    "SCOM": {"name": "Safaricom PLC",           "sector": "Telecommunications", "yahoo": "SCOM.NR"},
-    "EQTY": {"name": "Equity Group Holdings",   "sector": "Banking",            "yahoo": "EQTY.NR"},
-    "KCB":  {"name": "KCB Group PLC",           "sector": "Banking",            "yahoo": "KCB.NR"},
-    "COOP": {"name": "Co-operative Bank",       "sector": "Banking",            "yahoo": "COOP.NR"},
-    "EABL": {"name": "East African Breweries",  "sector": "Consumer Staples",   "yahoo": "EABL.NR"},
-    "BAT":  {"name": "BAT Kenya",               "sector": "Consumer Staples",   "yahoo": "BAT.NR"},
-    "KPLC": {"name": "Kenya Power & Lighting",  "sector": "Energy",             "yahoo": "KPLC.NR"},
-    "ABSA": {"name": "Absa Bank Kenya",         "sector": "Banking",            "yahoo": "ABSA.NR"},
-    "NCBA": {"name": "NCBA Group PLC",          "sector": "Banking",            "yahoo": "NCBA.NR"},
-    "STND": {"name": "Standard Chartered Kenya","sector": "Banking",            "yahoo": "SCBK.NR"},
-    "BAMB": {"name": "Bamburi Cement",          "sector": "Manufacturing",      "yahoo": "BAMB.NR"},
-    "KENR": {"name": "Kenya Re-Insurance",      "sector": "Insurance",          "yahoo": "KENR.NR"},
-    "JUB":  {"name": "Jubilee Holdings",        "sector": "Insurance",          "yahoo": "JUB.NR"},
-    "SBIC": {"name": "Stanbic Holdings",        "sector": "Banking",            "yahoo": "SBIC.NR"},
-    "HFCK": {"name": "HF Group",               "sector": "Banking",            "yahoo": "HFCK.NR"},
-    "IMH":  {"name": "I&M Group PLC",           "sector": "Banking",            "yahoo": "IMH.NR"},
-    "DTK":  {"name": "Diamond Trust Bank Kenya","sector": "Banking",            "yahoo": "DTK.NR"},
-    "BRIT": {"name": "Britam Holdings PLC",     "sector": "Insurance",          "yahoo": "BRIT.NR"},
-    "CIC":  {"name": "CIC Insurance Group",     "sector": "Insurance",          "yahoo": "CIC.NR"},
-    "KEGN": {"name": "KenGen",                  "sector": "Energy",             "yahoo": "KEGN.NR"},
-    "TOTL": {"name": "TotalEnergies Marketing", "sector": "Energy",             "yahoo": "TOTL.NR"},
-    "CTUM": {"name": "Centum Investment Company","sector": "Investment",          "yahoo": "CTUM.NR"},
-    "UNGA": {"name": "Unga Group PLC",          "sector": "Manufacturing",      "yahoo": "UNGA.NR"},
-    "KUKZ": {"name": "Kakuzi PLC",              "sector": "Agricultural",      "yahoo": "KUKZ.NR"},
-    "SASN": {"name": "Sasini PLC",              "sector": "Agricultural",      "yahoo": "SASN.NR"},
-}
+from data.stocks_registry import NSE_STOCKS, BASE_PRICES
 
 NEWS_FEEDS = [
     {"source": "Business Daily Africa", "url": "https://www.businessdailyafrica.com/rss/markets"},
@@ -57,16 +38,6 @@ NEWS_FEEDS = [
     {"source": "The Standard",          "url": "https://www.standardmedia.co.ke/rss/business.php"},
     {"source": "KBC",                   "url": "https://www.kbc.co.ke/category/business/feed/"},
 ]
-
-BASE_PRICES = {
-    "SCOM": 30.90, "EQTY": 72.00, "KCB": 67.50, "COOP": 31.85,
-    "EABL": 248.25, "BAT": 520.00, "KPLC": 15.50, "ABSA": 29.60,
-    "NCBA": 89.00,  "STND": 342.75, "BAMB": 54.00, "KENR": 3.30,
-    "JUB":  366.00, "SBIC": 270.00, "HFCK": 9.78,
-    "IMH":  21.00,  "DTK":  54.00,  "BRIT": 5.20,  "CIC":  2.20,
-    "KEGN": 2.30,   "TOTL": 18.00,  "CTUM": 9.00,  "UNGA": 17.00,
-    "KUKZ": 385.00, "SASN": 20.00,
-}
 
 # Simple TTL cache
 _cache: dict = {}
@@ -169,8 +140,8 @@ def get_news_feed(ticker_filter: Optional[str] = None) -> list:
         try:
             feed = feedparser.parse(feed_meta["url"])
             for entry in feed.entries[:8]:
-                title   = entry.get("title", "")
-                summary = entry.get("summary", entry.get("description", ""))
+                title   = clean_html(entry.get("title", ""))
+                summary = clean_html(entry.get("summary", entry.get("description", "")))
                 link    = entry.get("link", "")
                 pub     = entry.get("published", datetime.now().strftime("%a, %d %b %Y %H:%M:%S +0000"))
                 related = _extract_tickers(title + " " + summary)

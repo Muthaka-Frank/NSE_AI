@@ -9,17 +9,34 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/style.css" />
+  <script src="js/auth.js"></script>
   <style>
     .news-page-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      grid-template-columns: repeat(3, 1fr);
       gap: 18px;
+      align-items: stretch;
+    }
+    @media (max-width: 1024px) {
+      .news-page-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    @media (max-width: 768px) {
+      .news-page-grid {
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+      .news-full-card {
+        padding: 16px;
+      }
     }
     .news-full-card {
       background: var(--bg-card); border: 1px solid var(--border);
       border-radius: var(--radius); padding: 22px;
       display: flex; flex-direction: column; gap: 12px;
       transition: var(--transition);
+      height: 100%;
     }
     .news-full-card:hover { border-color: var(--border-light); transform: translateY(-2px); box-shadow: var(--shadow); }
     .news-summary { font-size: 13px; color: var(--text-secondary); line-height: 1.65; }
@@ -32,7 +49,15 @@
     .filter-btn:hover, .filter-btn.active {
       border-color: var(--accent); color: var(--accent); background: var(--accent-glow2);
     }
-    .sentiment-score-bar { height: 4px; border-radius: 2px; margin-top: 4px; }
+    .sentiment-bar-track {
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255,255,255,0.06);
+      width: 100%;
+      margin: 4px 0 8px 0;
+      overflow: hidden;
+    }
+    .sentiment-score-bar { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
     .sentiment-score-bar.POSITIVE { background: linear-gradient(90deg, var(--accent-dim), var(--accent)); }
     .sentiment-score-bar.NEGATIVE { background: linear-gradient(90deg, var(--red-dim), var(--red)); }
     .sentiment-score-bar.NEUTRAL  { background: var(--border-light); }
@@ -79,6 +104,11 @@
     .conf-fill.POSITIVE { background: var(--accent); }
     .conf-fill.NEGATIVE { background: var(--red); }
     .conf-fill.NEUTRAL  { background: var(--text-muted); }
+    
+    .news-meta {
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 11px; color: var(--text-muted); margin-top: auto;
+    }
   </style>
 </head>
 <body>
@@ -98,6 +128,7 @@
       <a href="stocks.html" class="nav-link">All Stocks</a>
     </div>
     <div class="nav-meta">
+      <div id="nav-user-slot"></div>
       <div class="live-indicator"><span class="live-dot"></span>LIVE</div>
       <div class="nav-time" id="nav-time">--:--:-- EAT</div>
     </div>
@@ -149,6 +180,45 @@
     let activeFilter = 'ALL';
 
     document.addEventListener('DOMContentLoaded', async () => {
+      // Auth guard — redirect to login if not authenticated
+      if (!auth.requireAuth()) return;
+
+      // Inject user dropdown into navbar
+      (function injectUser() {
+        const user = auth.getUser();
+        if (!user) return;
+        const slot = document.getElementById('nav-user-slot');
+        if (!slot) return;
+        const initials = user.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+        slot.innerHTML = `
+          <div class="nav-user" id="nav-user-btn">
+            ${user.avatar_url
+              ? `<img src="${user.avatar_url}" class="nav-avatar" alt="${user.name}" />`
+              : `<div class="nav-avatar-initials">${initials}</div>`}
+            <span class="nav-user-name">${user.name.split(' ')[0]}</span>
+            <span class="nav-chevron">▼</span>
+            <div class="nav-dropdown">
+              <div class="nav-dropdown-header">
+                <div class="nav-dropdown-name">${user.name}</div>
+                <div class="nav-dropdown-email">${user.email || ''}</div>
+              </div>
+              <div class="nav-dropdown-divider"></div>
+              <button class="nav-dropdown-item danger" onclick="auth.logout()">
+                <span>↩</span> Sign Out
+              </button>
+            </div>
+          </div>`;
+
+        // Toggle dropdown on click
+        const btn = document.getElementById('nav-user-btn');
+        btn.addEventListener('click', e => {
+          e.stopPropagation();
+          btn.classList.toggle('open');
+        });
+        // Close when clicking anywhere else
+        document.addEventListener('click', () => btn.classList.remove('open'));
+      })();
+
       // Clock
       const tick = () => {
         document.getElementById('nav-time').textContent =
@@ -246,12 +316,17 @@
               <span class="news-source">${a.source}</span>
               <span class="sentiment-badge ${sent.label}">${sent.label} · ${sent.score_pct}</span>
             </div>
-            <div class="sentiment-score-bar ${sent.label}" style="width:${width}%"></div>
+            <div class="sentiment-bar-track">
+              <div class="sentiment-score-bar ${sent.label}" style="width:${width}%"></div>
+            </div>
             <a href="${a.url}" target="_blank" rel="noopener" class="news-title" style="font-size:15px">${a.title}</a>
             ${a.summary ? `<div class="news-summary">${a.summary}</div>` : ''}
             ${impactHTML}
             <div class="news-meta">
               <span>${a.published}</span>
+              <div class="news-tickers">
+                ${(a.related_tickers || []).map(t => `<span class="news-ticker-chip">${t}</span>`).join('')}
+              </div>
             </div>
           </div>
         `;
