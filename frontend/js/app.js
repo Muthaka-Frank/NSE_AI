@@ -171,7 +171,28 @@ async function loadTicker() {
 function renderTicker(stocks) {
   const tape = document.getElementById('ticker-tape');
   if (!tape) return;
+  
   const doubled = [...stocks, ...stocks]; // Seamless loop
+  
+  // Update in-place if count matches to prevent marquee animation from resetting
+  const existingItems = tape.querySelectorAll('.ticker-item');
+  if (existingItems.length === doubled.length) {
+    doubled.forEach((s, idx) => {
+      const item = existingItems[idx];
+      if (!item) return;
+      
+      const priceEl = item.querySelector('.ticker-price');
+      const changeEl = item.querySelector('.ticker-change');
+      
+      if (priceEl) priceEl.textContent = `KES ${s.price.toFixed(2)}`;
+      if (changeEl) {
+        changeEl.className = `ticker-change ${s.change_pct >= 0 ? 'up' : 'down'}`;
+        changeEl.innerHTML = `${s.change_pct >= 0 ? '▲' : '▼'} ${Math.abs(s.change_pct).toFixed(2)}%`;
+      }
+    });
+    return;
+  }
+  
   tape.innerHTML = doubled.map(s => `
     <div class="ticker-item" onclick="jumpToStock('${s.ticker}')">
       <span class="ticker-symbol">${s.ticker}</span>

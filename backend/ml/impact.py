@@ -7,19 +7,24 @@ For each news article, determines per-ticker impact:
 """
 
 from ml.sentiment import analyse, SentimentResult
+from data.stocks_registry import NSE_STOCKS
 
-SECTOR_MAP = {
-    "Banking":         ["EQTY", "KCB", "COOP", "ABSA", "NCBA", "STND", "SBIC", "HFCK", "IMH", "DTK"],
-    "Telecommunications": ["SCOM"],
-    "Consumer Staples":["EABL", "BAT"],
-    "Energy":          ["KPLC", "KEGN", "TOTL"],
-    "Manufacturing":   ["BAMB", "UNGA"],
-    "Insurance":       ["KENR", "JUB", "BRIT", "CIC"],
-    "Investment":      ["CTUM"],
-    "Agricultural":    ["KUKZ", "SASN"],
-}
+SECTOR_MAP = {}
+TICKER_SECTOR = {}
 
-TICKER_SECTOR = {t: s for s, tickers in SECTOR_MAP.items() for t in tickers}
+def refresh_sector_maps():
+    global SECTOR_MAP, TICKER_SECTOR
+    SECTOR_MAP.clear()
+    TICKER_SECTOR.clear()
+    for ticker, info in NSE_STOCKS.items():
+        sector = info.get("sector", "Investment")
+        if sector not in SECTOR_MAP:
+            SECTOR_MAP[sector] = []
+        SECTOR_MAP[sector].append(ticker)
+        TICKER_SECTOR[ticker] = sector
+
+# Run initially
+refresh_sector_maps()
 
 # Keyword rules that override general sentiment for specific contexts
 # Format: (keywords, affected_sectors_or_tickers, direction, reason_template)
@@ -84,6 +89,7 @@ def analyse_ticker_impacts(article: dict) -> dict:
     For a news article, return a dict mapping each related ticker
     to its impact: {direction, reason, confidence, is_direct}.
     """
+    refresh_sector_maps()
     title   = article.get("title", "")
     summary = article.get("summary", "")
     text    = (title + " " + summary).lower()
@@ -140,6 +146,7 @@ def _direct_impact(ticker: str, sentiment: SentimentResult, text: str) -> tuple:
 
 def _build_reason(ticker: str, sentiment: SentimentResult, text: str) -> str:
     """Generate a concise impact reason from article keywords."""
+    refresh_sector_maps()
     sector = TICKER_SECTOR.get(ticker, "")
 
     # Priority keyword patterns → reason templates

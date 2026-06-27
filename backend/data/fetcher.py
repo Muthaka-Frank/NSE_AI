@@ -207,21 +207,101 @@ def _fetch_single_stock(ticker: str, meta: dict) -> Optional[dict]:
 
 
 def _extract_tickers(text: str) -> list:
-    mapping = {
-        "Safaricom": "SCOM", "SCOM": "SCOM", "Equity": "EQTY", "EQTY": "EQTY",
-        "KCB": "KCB", "Co-operative Bank": "COOP", "COOP": "COOP",
-        "EABL": "EABL", "East African Breweries": "EABL",
-        "BAT": "BAT", "British American Tobacco": "BAT",
-        "Kenya Power": "KPLC", "KPLC": "KPLC",
-        "Absa": "ABSA", "ABSA": "ABSA", "NCBA": "NCBA",
-        "Standard Chartered": "STND", "Bamburi": "BAMB",
-        "Jubilee": "JUB", "Stanbic": "SBIC",
-        "HF Group": "HFCK", "HFCK": "HFCK",
-    }
+    import re
     found = []
-    for kw, t in mapping.items():
-        if kw.lower() in text.lower() and t not in found:
-            found.append(t)
+    
+    # 1. Direct Case-Sensitive Ticker Matches
+    # This matches \bSCOM\b, \bPORT\b, etc. in all-caps as standalone words
+    tickers = list(NSE_STOCKS.keys())
+    if tickers:
+        tickers_pattern = rf"\b({'|'.join(re.escape(t) for t in tickers)})\b"
+        for m in re.finditer(tickers_pattern, text):
+            t = m.group(0)
+            if t not in found:
+                found.append(t)
+            
+    # 2. Dynamic Phrase/Alias Matches (Case-Insensitive Whole-Phrase)
+    # List of generic words that should not be matched case-insensitively as standalone words
+    generic_words = {
+        "port", "equity", "total", "family", "bat", "cic", "cooperative", 
+        "co-operative", "standard", "jubilee", "unga", "group", "limited", 
+        "company", "plc", "ltd", "corporation", "capital"
+    }
+    
+    # Map of lowercase phrase/keyword -> ticker
+    phrase_map = {}
+    
+    # Pre-populate with robust curated aliases
+    curated_aliases = {
+        "SCOM": ["Safaricom"],
+        "EQTY": ["Equity Bank", "Equity Group", "Equity Holdings"],
+        "KCB":  ["KCB Bank", "KCB Group", "KCB PLC", "K.C.B"],
+        "COOP": ["Co-operative Bank", "Cooperative Bank", "Coop Bank"],
+        "EABL": ["East African Breweries", "EABL", "Kenya Breweries", "KBL"],
+        "BAT":  ["British American Tobacco", "BAT Kenya"],
+        "KPLC": ["Kenya Power", "KPLC", "Kenya Power & Lighting"],
+        "ABSA": ["Absa", "Absa Bank", "Absa Group", "Absa Kenya"],
+        "NCBA": ["NCBA Bank", "NCBA Group", "NCBA Kenya"],
+        "STND": ["Standard Chartered", "Stanchart"],
+        "BAMB": ["Bamburi Cement", "Bamburi"],
+        "KENR": ["Kenya Re", "Kenya Re-Insurance", "Kenya Reinsurance"],
+        "JUB":  ["Jubilee Insurance", "Jubilee Holdings"],
+        "SBIC": ["Stanbic Bank", "Stanbic Group", "Stanbic Holdings"],
+        "HFCK": ["HF Group", "Housing Finance"],
+        "IMH":  ["I&M Bank", "I&M Group", "I & M"],
+        "DTK":  ["Diamond Trust Bank", "DTB Bank", "DTB Kenya", "DTB"],
+        "BRIT": ["Britam", "Britam Holdings"],
+        "CIC":  ["CIC Insurance", "CIC Group", "CIC Holdings"],
+        "KEGN": ["KenGen", "Kenya Electricity Generating"],
+        "TOTL": ["TotalEnergies", "Total Energies", "Total Kenya"],
+        "CTUM": ["Centum", "Centum Investment"],
+        "UNGA": ["Unga Group", "Unga Limited"],
+        "KUKZ": ["Kakuzi"],
+        "SASN": ["Sasini"],
+        "FMLY": ["Family Bank"],
+        "PORT": ["Portland Cement", "East African Portland"],
+        "BKG":  ["BK Group", "BK", "BK Group Plc"],
+    }
+    
+    # Add curated aliases for those present in NSE_STOCKS
+    for ticker, aliases in curated_aliases.items():
+        if ticker in NSE_STOCKS:
+            for alias in aliases:
+                phrase_map[alias.lower()] = ticker
+                
+    # Dynamically generate aliases for any stocks not covered by curated aliases (e.g. new dynamic listings)
+    for ticker, info in NSE_STOCKS.items():
+        if ticker in curated_aliases:
+            continue
+            
+        ticker_upper = ticker.upper()
+        name = info.get("name", "")
+        if not name:
+            continue
+            
+        # Clean company name of suffixes
+        cleaned = name
+        for suffix in ["PLC", "Limited", "Ltd", "Group", "Holdings", "Holding", "Co.", "Co", "Ltd.", "Company"]:
+            cleaned = re.sub(rf"\b{suffix}\b", "", cleaned, flags=re.IGNORECASE)
+        cleaned = cleaned.strip()
+        
+        # If it's a multi-word phrase, it is safe to match case-insensitively
+        if " " in cleaned:
+            phrase_map[cleaned.lower()] = ticker_upper
+        else:
+            # If it's a single word, check if it's not a generic word
+            if cleaned.lower() not in generic_words and len(cleaned) >= 2:
+                phrase_map[cleaned.lower()] = ticker_upper
+                
+    # Search text for phrases case-insensitively using whole-word boundaries
+    for phrase, ticker in phrase_map.items():
+        if ticker in found:
+            continue
+        # Use regex to match the phrase case-insensitively as a whole phrase
+        pattern = rf"\b{re.escape(phrase)}\b"
+        if re.search(pattern, text, re.IGNORECASE):
+            found.append(ticker)
+            
     return found
 
 
