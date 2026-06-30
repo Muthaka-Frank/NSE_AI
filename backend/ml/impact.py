@@ -30,34 +30,34 @@ refresh_sector_maps()
 # Format: (keywords, affected_sectors_or_tickers, direction, reason_template)
 DOMAIN_RULES = [
     # Interest rates
-    ({"interest rate", "cbk rate", "central bank rate", "mpr"},
+    ({"interest rate hike", "rate hike", "higher interest rates", "cbk raises rates", "raises central bank rate", "mpr hike"},
      ["Banking"], "POSITIVE",
      "Higher interest rates typically widen banking net interest margins"),
-    ({"rate cut", "lower rates", "rate reduction"},
+    ({"rate cut", "lower interest rates", "rate reduction", "cbk cuts rates", "cuts central bank rate", "mpr cut"},
      ["Banking"], "NEGATIVE",
      "Rate cuts compress banking net interest margins"),
 
     # Inflation
-    ({"inflation", "cpi", "cost of living"},
+    ({"rising inflation", "inflation rises", "elevated inflation", "inflation spike", "cost of living rise"},
      ["Consumer Staples", "Manufacturing"], "NEGATIVE",
      "Rising inflation squeezes consumer goods margins"),
-    ({"inflation", "cpi"},
+    ({"rising inflation", "elevated inflation", "inflation spike"},
      ["Banking"], "NEGATIVE",
      "Elevated inflation can erode real loan book returns"),
 
     # Fuel / energy
-    ({"fuel", "electricity", "power tariff", "energy costs"},
+    ({"fuel price hike", "fuel prices rise", "electricity tariff hike", "rising fuel costs", "expensive power", "higher power costs", "energy costs rise"},
      ["Manufacturing", "Consumer Staples"], "NEGATIVE",
      "Higher energy costs increase production expenses"),
-    ({"fuel levy", "tariff hike", "electricity tariff"},
+    ({"fuel levy", "electricity tariff hike", "power prices up"},
      ["Energy"], "POSITIVE",
      "Higher tariffs directly boost Kenya Power revenue"),
 
     # Telecom / mobile money
-    ({"mobile money", "mpesa", "m-pesa", "fintech"},
+    ({"mpesa growth", "m-pesa transaction volume", "mobile money revenue", "mpesa expansion"},
      ["Telecommunications"], "POSITIVE",
      "Mobile money growth expands transaction revenue"),
-    ({"data prices", "mobile data", "sim card"},
+    ({"data price cut", "lower data prices", "sim card registration rules", "data price cap"},
      ["Telecommunications"], "NEGATIVE",
      "Regulatory pressure on data prices limits revenue growth"),
 
@@ -67,18 +67,21 @@ DOMAIN_RULES = [
      "Broad market news — monitor for sector-specific developments"),
 
     # Shilling / forex
-    ({"shilling", "kes", "forex", "exchange rate", "dollar"},
+    ({"shilling depreciates", "shilling depreciation", "weak shilling", "shilling drops", "shilling weakens", "shilling slides", "falling shilling"},
      ["Consumer Staples", "Manufacturing"], "NEGATIVE",
      "Shilling weakness raises cost of imported inputs"),
-    ({"shilling", "kes"},
+    ({"shilling strengthens", "strong shilling", "shilling rally", "shilling gains", "shilling appreciates"},
+     ["Consumer Staples", "Manufacturing"], "POSITIVE",
+     "Stronger shilling lowers import costs for manufacturers"),
+    ({"shilling volatility", "currency volatility", "forex trading gains", "kes volatility"},
      ["Banking"], "POSITIVE",
      "Currency volatility can boost forex trading income"),
 
     # Government / taxation
-    ({"tax", "vat", "excise", "levy"},
+    ({"tax hike", "new vat", "excise duty increase", "higher tax", "increased taxation"},
      ["Consumer Staples"], "NEGATIVE",
      "Higher taxation on consumer goods reduces demand"),
-    ({"government contract", "public tender", "infrastructure"},
+    ({"government contract", "public tender", "infrastructure project", "contract award"},
      ["Manufacturing"], "POSITIVE",
      "Government contracts provide stable order books"),
 ]

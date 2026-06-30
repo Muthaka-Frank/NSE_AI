@@ -418,5 +418,11 @@
         "sector": "Investment",
         "yahoo": "XPRS.NR",
         "base_price": 7.0
+    },
+    "TRFC": {
+        "name": "TRIFIC Green USD I-REIT",
+        "sector": "Investment",
+        "yahoo": "TRFC.NR",
+        "base_price": 1.23
     }
 }
