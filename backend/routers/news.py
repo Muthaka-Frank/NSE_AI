@@ -27,11 +27,14 @@ def get_news(ticker: Optional[str] = Query(None, description="Filter by NSE tick
         impact_list = []
         for t, imp in impacts.items():
             impact_list.append({
-                "ticker":     t,
-                "direction":  imp["direction"],
-                "reason":     imp["reason"],
-                "confidence": imp["confidence"],
-                "is_direct":  imp["is_direct"],
+                "ticker":                 t,
+                "direction":              imp["direction"],
+                "reason":                 imp["reason"],
+                "confidence":             imp["confidence"],
+                "is_direct":              imp["is_direct"],
+                "relevance":              imp.get("relevance", 0.60),
+                "transmission_mechanism": imp.get("transmission_mechanism", "Macroeconomic Spillover"),
+                "matching_sentences":     imp.get("matching_sentences", []),
             })
         impact_list.sort(key=lambda x: (not x["is_direct"], -x["confidence"]))
 

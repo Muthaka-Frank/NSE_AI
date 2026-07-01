@@ -87,10 +87,62 @@ DOMAIN_RULES = [
 ]
 
 
+from ml.relevance import evaluate_relevance
+
+def get_matching_sentences(ticker: str, company_name: str, title: str, summary: str) -> list[str]:
+    import re
+    all_text = title + " " + summary
+    cleaned_name = company_name
+    for suffix in ["PLC", "Limited", "Ltd", "Group", "Holdings", "Holding", "Co.", "Co", "Ltd.", "Company"]:
+        cleaned_name = re.sub(rf"\b{suffix}\b", "", cleaned_name, flags=re.IGNORECASE)
+    name_lower = cleaned_name.strip().lower()
+    ticker_lower = ticker.lower()
+    
+    # Split into sentences
+    sentences = re.split(r'(?<=[.!?])\s+', all_text)
+    matching = []
+    for s in sentences:
+        s_clean = s.strip()
+        if not s_clean:
+            continue
+        s_lower = s_clean.lower()
+        if (ticker_lower in s_lower) or (name_lower in s_lower):
+            matching.append(s_clean)
+    return matching
+
+def get_transmission_mechanism(reason: str, is_direct: bool) -> str:
+    r_lower = reason.lower()
+    if is_direct:
+        if "dividend" in r_lower or "payout" in r_lower:
+            return "Dividend Payout"
+        elif "earnings" in r_lower or "profit" in r_lower or "revenue" in r_lower or "financials" in r_lower:
+            return "Corporate Earnings"
+        elif "acquisition" in r_lower or "merger" in r_lower or "takeover" in r_lower:
+            return "M&A Activity"
+        elif "layoffs" in r_lower or "redundancy" in r_lower or "job cuts" in r_lower:
+            return "Labor / Cost Scaling"
+        elif "regulatory" in r_lower or "investigation" in r_lower or "fine" in r_lower or "compliance" in r_lower:
+            return "Regulatory / Compliance"
+        elif "contract" in r_lower or "partnership" in r_lower or "opportunity" in r_lower:
+            return "Business Expansion"
+        return "Corporate News Sentiment"
+    else:
+        if "energy costs" in r_lower or "tariff" in r_lower or "fuel" in r_lower:
+            return "Macro Energy Cost Channel"
+        elif "inflation" in r_lower:
+            return "Macro Inflation Channel"
+        elif "interest rate" in r_lower or "margin" in r_lower:
+            return "Macro Interest Rate Channel"
+        elif "shilling" in r_lower or "import" in r_lower:
+            return "Exchange Rate Channel"
+        elif "tax" in r_lower or "vat" in r_lower or "levy" in r_lower:
+            return "Government / Tax Channel"
+        return "Macroeconomic Spillover"
+
 def analyse_ticker_impacts(article: dict) -> dict:
     """
     For a news article, return a dict mapping each related ticker
-    to its impact: {direction, reason, confidence, is_direct}.
+    to its impact: {direction, reason, confidence, is_direct, relevance, transmission_mechanism, matching_sentences}.
     """
     refresh_sector_maps()
     title   = article.get("title", "")
@@ -103,12 +155,28 @@ def analyse_ticker_impacts(article: dict) -> dict:
 
     # 1. Direct ticker mentions — use overall article sentiment
     for ticker in tickers:
+        meta = NSE_STOCKS.get(ticker, {})
+        company_name = meta.get("name", ticker)
+        
+        # Evaluate relevance
+        relevance_score = evaluate_relevance(ticker, company_name, title, summary, len(tickers))
+        
+        # Discard low-relevance matches
+        if relevance_score < 0.45:
+            continue
+            
         direction, reason, confidence = _direct_impact(ticker, overall, text)
+        mechanism = get_transmission_mechanism(reason, is_direct=True)
+        sentences = get_matching_sentences(ticker, company_name, title, summary)
+        
         impacts[ticker] = {
-            "direction":  direction,
-            "reason":     reason,
-            "confidence": confidence,
-            "is_direct":  True,
+            "direction":              direction,
+            "reason":                 reason,
+            "confidence":             confidence,
+            "is_direct":              True,
+            "relevance":              relevance_score,
+            "transmission_mechanism": mechanism,
+            "matching_sentences":     sentences
         }
 
     # 2. Domain rules — may add additional affected tickers (sector spillover)
@@ -128,12 +196,18 @@ def analyse_ticker_impacts(article: dict) -> dict:
 
         for ticker in affected_tickers:
             if ticker not in impacts:
-                # Only add as spillover if not already directly mentioned
+                mechanism = get_transmission_mechanism(reason, is_direct=False)
+                # Spillover relevance is linked to the overall article sentiment strength
+                spillover_relevance = round(overall.score * 0.8, 3)
+                
                 impacts[ticker] = {
-                    "direction":  direction,
-                    "reason":     reason,
-                    "confidence": round(overall.score * 0.7, 3),  # lower confidence for spillover
-                    "is_direct":  False,
+                    "direction":              direction,
+                    "reason":                 reason,
+                    "confidence":             round(overall.score * 0.7, 3),  # lower confidence for spillover
+                    "is_direct":              False,
+                    "relevance":              spillover_relevance,
+                    "transmission_mechanism": mechanism,
+                    "matching_sentences":     []  # Sector spillovers are conceptual/macro
                 }
 
     return impacts

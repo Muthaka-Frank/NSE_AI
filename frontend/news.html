@@ -310,6 +310,34 @@
           </div>
         ` : '';
 
+        const deepDiveHTML = impacts.length ? `
+          <details class="news-deep-dive">
+            <summary class="deep-dive-trigger">🤖 View AI Transmission Analysis</summary>
+            <div class="deep-dive-content">
+              ${impacts.map(imp => {
+                const rel = Math.round((imp.relevance || 0.60) * 100);
+                const sentencesHTML = (imp.matching_sentences || []).map(s => `
+                  <blockquote class="deep-dive-quote">“${s}”</blockquote>
+                `).join('') || '<div class="deep-dive-quote-none">Macro economic sector transmission. No direct textual mention.</div>';
+                return `
+                  <div class="deep-dive-row">
+                    <div class="deep-dive-header">
+                      <span class="deep-dive-ticker ${imp.direction}">${imp.ticker}</span>
+                      <span class="deep-dive-badge channel">${imp.transmission_mechanism}</span>
+                      <span class="deep-dive-badge relevance">${rel}% Relevance</span>
+                    </div>
+                    <div class="deep-dive-reason">${imp.reason}</div>
+                    <div class="deep-dive-context">
+                      <div class="context-label">Text Evidence:</div>
+                      ${sentencesHTML}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </details>
+        ` : '';
+
         return `
           <div class="news-full-card">
             <div class="news-source-row">
@@ -322,6 +350,7 @@
             <a href="${a.url}" target="_blank" rel="noopener" class="news-title" style="font-size:15px">${a.title}</a>
             ${a.summary ? `<div class="news-summary">${a.summary}</div>` : ''}
             ${impactHTML}
+            ${deepDiveHTML}
             <div class="news-meta">
               <span>${a.published}</span>
               <div class="news-tickers">
