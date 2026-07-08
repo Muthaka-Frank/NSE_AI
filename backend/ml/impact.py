@@ -30,34 +30,34 @@ refresh_sector_maps()
 # Format: (keywords, affected_sectors_or_tickers, direction, reason_template)
 DOMAIN_RULES = [
     # Interest rates
-    ({"interest rate hike", "rate hike", "higher interest rates", "cbk raises rates", "raises central bank rate", "mpr hike"},
+    ({"interest rate", "cbk rate", "central bank rate", "mpr"},
      ["Banking"], "POSITIVE",
      "Higher interest rates typically widen banking net interest margins"),
-    ({"rate cut", "lower interest rates", "rate reduction", "cbk cuts rates", "cuts central bank rate", "mpr cut"},
+    ({"rate cut", "lower rates", "rate reduction"},
      ["Banking"], "NEGATIVE",
      "Rate cuts compress banking net interest margins"),
 
     # Inflation
-    ({"rising inflation", "inflation rises", "elevated inflation", "inflation spike", "cost of living rise"},
+    ({"inflation", "cpi", "cost of living"},
      ["Consumer Staples", "Manufacturing"], "NEGATIVE",
      "Rising inflation squeezes consumer goods margins"),
-    ({"rising inflation", "elevated inflation", "inflation spike"},
+    ({"inflation", "cpi"},
      ["Banking"], "NEGATIVE",
      "Elevated inflation can erode real loan book returns"),
 
     # Fuel / energy
-    ({"fuel price hike", "fuel prices rise", "electricity tariff hike", "rising fuel costs", "expensive power", "higher power costs", "energy costs rise"},
+    ({"fuel", "electricity", "power tariff", "energy costs"},
      ["Manufacturing", "Consumer Staples"], "NEGATIVE",
      "Higher energy costs increase production expenses"),
-    ({"fuel levy", "electricity tariff hike", "power prices up"},
+    ({"fuel levy", "tariff hike", "electricity tariff"},
      ["Energy"], "POSITIVE",
      "Higher tariffs directly boost Kenya Power revenue"),
 
     # Telecom / mobile money
-    ({"mpesa growth", "m-pesa transaction volume", "mobile money revenue", "mpesa expansion"},
+    ({"mobile money", "mpesa", "m-pesa", "fintech"},
      ["Telecommunications"], "POSITIVE",
      "Mobile money growth expands transaction revenue"),
-    ({"data price cut", "lower data prices", "sim card registration rules", "data price cap"},
+    ({"data prices", "mobile data", "sim card"},
      ["Telecommunications"], "NEGATIVE",
      "Regulatory pressure on data prices limits revenue growth"),
 
@@ -67,82 +67,27 @@ DOMAIN_RULES = [
      "Broad market news — monitor for sector-specific developments"),
 
     # Shilling / forex
-    ({"shilling depreciates", "shilling depreciation", "weak shilling", "shilling drops", "shilling weakens", "shilling slides", "falling shilling"},
+    ({"shilling", "kes", "forex", "exchange rate", "dollar"},
      ["Consumer Staples", "Manufacturing"], "NEGATIVE",
      "Shilling weakness raises cost of imported inputs"),
-    ({"shilling strengthens", "strong shilling", "shilling rally", "shilling gains", "shilling appreciates"},
-     ["Consumer Staples", "Manufacturing"], "POSITIVE",
-     "Stronger shilling lowers import costs for manufacturers"),
-    ({"shilling volatility", "currency volatility", "forex trading gains", "kes volatility"},
+    ({"shilling", "kes"},
      ["Banking"], "POSITIVE",
      "Currency volatility can boost forex trading income"),
 
     # Government / taxation
-    ({"tax hike", "new vat", "excise duty increase", "higher tax", "increased taxation"},
+    ({"tax", "vat", "excise", "levy"},
      ["Consumer Staples"], "NEGATIVE",
      "Higher taxation on consumer goods reduces demand"),
-    ({"government contract", "public tender", "infrastructure project", "contract award"},
+    ({"government contract", "public tender", "infrastructure"},
      ["Manufacturing"], "POSITIVE",
      "Government contracts provide stable order books"),
 ]
 
 
-from ml.relevance import evaluate_relevance
-
-def get_matching_sentences(ticker: str, company_name: str, title: str, summary: str) -> list[str]:
-    import re
-    all_text = title + " " + summary
-    cleaned_name = company_name
-    for suffix in ["PLC", "Limited", "Ltd", "Group", "Holdings", "Holding", "Co.", "Co", "Ltd.", "Company"]:
-        cleaned_name = re.sub(rf"\b{suffix}\b", "", cleaned_name, flags=re.IGNORECASE)
-    name_lower = cleaned_name.strip().lower()
-    ticker_lower = ticker.lower()
-    
-    # Split into sentences
-    sentences = re.split(r'(?<=[.!?])\s+', all_text)
-    matching = []
-    for s in sentences:
-        s_clean = s.strip()
-        if not s_clean:
-            continue
-        s_lower = s_clean.lower()
-        if (ticker_lower in s_lower) or (name_lower in s_lower):
-            matching.append(s_clean)
-    return matching
-
-def get_transmission_mechanism(reason: str, is_direct: bool) -> str:
-    r_lower = reason.lower()
-    if is_direct:
-        if "dividend" in r_lower or "payout" in r_lower:
-            return "Dividend Payout"
-        elif "earnings" in r_lower or "profit" in r_lower or "revenue" in r_lower or "financials" in r_lower:
-            return "Corporate Earnings"
-        elif "acquisition" in r_lower or "merger" in r_lower or "takeover" in r_lower:
-            return "M&A Activity"
-        elif "layoffs" in r_lower or "redundancy" in r_lower or "job cuts" in r_lower:
-            return "Labor / Cost Scaling"
-        elif "regulatory" in r_lower or "investigation" in r_lower or "fine" in r_lower or "compliance" in r_lower:
-            return "Regulatory / Compliance"
-        elif "contract" in r_lower or "partnership" in r_lower or "opportunity" in r_lower:
-            return "Business Expansion"
-        return "Corporate News Sentiment"
-    else:
-        if "energy costs" in r_lower or "tariff" in r_lower or "fuel" in r_lower:
-            return "Macro Energy Cost Channel"
-        elif "inflation" in r_lower:
-            return "Macro Inflation Channel"
-        elif "interest rate" in r_lower or "margin" in r_lower:
-            return "Macro Interest Rate Channel"
-        elif "shilling" in r_lower or "import" in r_lower:
-            return "Exchange Rate Channel"
-        elif "tax" in r_lower or "vat" in r_lower or "levy" in r_lower:
-            return "Government / Tax Channel"
-        return "Macroeconomic Spillover"
-
 def analyse_ticker_impacts(article: dict) -> dict:
     """
     For a news article, return a dict mapping each related ticker
-    to its impact: {direction, reason, confidence, is_direct, relevance, transmission_mechanism, matching_sentences}.
+    to its impact: {direction, reason, confidence, is_direct}.
     """
     refresh_sector_maps()
     title   = article.get("title", "")
@@ -155,28 +100,12 @@ def analyse_ticker_impacts(article: dict) -> dict:
 
     # 1. Direct ticker mentions — use overall article sentiment
     for ticker in tickers:
-        meta = NSE_STOCKS.get(ticker, {})
-        company_name = meta.get("name", ticker)
-        
-        # Evaluate relevance
-        relevance_score = evaluate_relevance(ticker, company_name, title, summary, len(tickers))
-        
-        # Discard low-relevance matches
-        if relevance_score < 0.45:
-            continue
-            
         direction, reason, confidence = _direct_impact(ticker, overall, text)
-        mechanism = get_transmission_mechanism(reason, is_direct=True)
-        sentences = get_matching_sentences(ticker, company_name, title, summary)
-        
         impacts[ticker] = {
-            "direction":              direction,
-            "reason":                 reason,
-            "confidence":             confidence,
-            "is_direct":              True,
-            "relevance":              relevance_score,
-            "transmission_mechanism": mechanism,
-            "matching_sentences":     sentences
+            "direction":  direction,
+            "reason":     reason,
+            "confidence": confidence,
+            "is_direct":  True,
         }
 
     # 2. Domain rules — may add additional affected tickers (sector spillover)
@@ -196,18 +125,12 @@ def analyse_ticker_impacts(article: dict) -> dict:
 
         for ticker in affected_tickers:
             if ticker not in impacts:
-                mechanism = get_transmission_mechanism(reason, is_direct=False)
-                # Spillover relevance is linked to the overall article sentiment strength
-                spillover_relevance = round(overall.score * 0.8, 3)
-                
+                # Only add as spillover if not already directly mentioned
                 impacts[ticker] = {
-                    "direction":              direction,
-                    "reason":                 reason,
-                    "confidence":             round(overall.score * 0.7, 3),  # lower confidence for spillover
-                    "is_direct":              False,
-                    "relevance":              spillover_relevance,
-                    "transmission_mechanism": mechanism,
-                    "matching_sentences":     []  # Sector spillovers are conceptual/macro
+                    "direction":  direction,
+                    "reason":     reason,
+                    "confidence": round(overall.score * 0.7, 3),  # lower confidence for spillover
+                    "is_direct":  False,
                 }
 
     return impacts
