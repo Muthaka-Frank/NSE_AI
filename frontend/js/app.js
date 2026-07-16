@@ -232,8 +232,12 @@ function _renderOverviewFromStocks(stocks) {
   const gainers = stocks.filter(s => s.change_pct > 0).length;
   const losers  = stocks.filter(s => s.change_pct < 0).length;
   const avgChg  = stocks.reduce((a,s) => a + s.change_pct, 0) / stocks.length;
-  const topGainer = [...stocks].sort((a,b) => b.change_pct - a.change_pct)[0];
-  const topLoser  = [...stocks].sort((a,b) => a.change_pct - b.change_pct)[0];
+  
+  const sortedGainers = [...stocks].filter(s => s.change_pct > 0).sort((a,b) => b.change_pct - a.change_pct);
+  const sortedLosers  = [...stocks].filter(s => s.change_pct < 0).sort((a,b) => a.change_pct - b.change_pct);
+  
+  const topGainer = sortedGainers.length > 0 ? sortedGainers[0] : null;
+  const topLoser  = sortedLosers.length > 0 ? sortedLosers[0] : null;
 
   grid.innerHTML = `
     <div class="overview-card">
@@ -246,15 +250,15 @@ function _renderOverviewFromStocks(stocks) {
       <div class="overview-value up">${gainers}</div>
       <div class="overview-change down">↓ ${losers} stocks falling</div>
     </div>
-    <div class="overview-card" onclick="jumpToStock('${topGainer.ticker}')" style="cursor:pointer">
+    <div class="overview-card" ${topGainer ? `onclick="jumpToStock('${topGainer.ticker}')" style="cursor:pointer"` : ''}>
       <div class="overview-label">Top Gainer</div>
-      <div class="overview-value up">${topGainer.ticker}</div>
-      <div class="overview-change up">▲ +${topGainer.change_pct.toFixed(2)}% · KES ${topGainer.price.toFixed(2)}</div>
+      <div class="overview-value up">${topGainer ? topGainer.ticker : 'None'}</div>
+      <div class="overview-change up">${topGainer ? `▲ +${topGainer.change_pct.toFixed(2)}% · KES ${topGainer.price.toFixed(2)}` : '0.00% · KES —'}</div>
     </div>
-    <div class="overview-card" onclick="jumpToStock('${topLoser.ticker}')" style="cursor:pointer">
+    <div class="overview-card" ${topLoser ? `onclick="jumpToStock('${topLoser.ticker}')" style="cursor:pointer"` : ''}>
       <div class="overview-label">Top Loser</div>
-      <div class="overview-value down">${topLoser.ticker}</div>
-      <div class="overview-change down">▼ ${topLoser.change_pct.toFixed(2)}% · KES ${topLoser.price.toFixed(2)}</div>
+      <div class="overview-value down">${topLoser ? topLoser.ticker : 'None'}</div>
+      <div class="overview-change down">${topLoser ? `▼ ${topLoser.change_pct.toFixed(2)}% · KES ${topLoser.price.toFixed(2)}` : '0.00% · KES —'}</div>
     </div>
   `;
 }
@@ -919,4 +923,101 @@ function updateSpotlightStar() {
     btn.style.color = 'var(--text-muted)';
   }
 }
+
+// ── AI Copilot & Portfolio Optimizer Functions ──────────────────────────────
+
+function toggleCopilotDrawer() {
+  const drawer = document.getElementById('copilot-drawer');
+  if (drawer) {
+    drawer.classList.toggle('open');
+  }
+}
+
+async function sendCopilotMessage() {
+  const input = document.getElementById('copilot-input');
+  if (!input || !input.value.trim()) return;
+  
+  const msg = input.value.trim();
+  input.value = '';
+  
+  const msgContainer = document.getElementById('copilot-messages');
+  if (!msgContainer) return;
+  
+  // Append user bubble
+  const userDiv = document.createElement('div');
+  userDiv.className = 'copilot-msg user';
+  userDiv.textContent = msg;
+  msgContainer.appendChild(userDiv);
+  msgContainer.scrollTop = msgContainer.scrollHeight;
+  
+  // Append temporary loading bubble
+  const loadDiv = document.createElement('div');
+  loadDiv.className = 'copilot-msg assistant';
+  loadDiv.innerHTML = 'Thinking...';
+  msgContainer.appendChild(loadDiv);
+  msgContainer.scrollTop = msgContainer.scrollHeight;
+  
+  // Send POST to /api/copilot/chat
+  const res = await api.post('/api/copilot/chat', { message: msg });
+  
+  // Remove loading bubble
+  msgContainer.removeChild(loadDiv);
+  
+  const replyDiv = document.createElement('div');
+  replyDiv.className = 'copilot-msg assistant';
+  
+  if (res && res.reply) {
+    // Simple markdown formatting helper
+    let formatted = res.reply
+      .replace(/### (.*)/g, '<h3>$1</h3>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/\n\n/g, '<br><br>')
+      .replace(/\n\* /g, '<br>• ');
+    replyDiv.innerHTML = formatted;
+  } else {
+    replyDiv.textContent = "Sorry, I couldn't reach the Copilot service right now.";
+  }
+  
+  msgContainer.appendChild(replyDiv);
+  msgContainer.scrollTop = msgContainer.scrollHeight;
+}
+
+async function runPortfolioOptimization() {
+  const resultsDiv = document.getElementById('portfolio-optimizer-results');
+  const weightsGrid = document.getElementById('optimizer-weights-grid');
+  const expectedReturn = document.getElementById('opt-expected-return');
+  const expectedVol = document.getElementById('opt-expected-vol');
+  const sharpeRatio = document.getElementById('opt-sharpe-ratio');
+  
+  if (!resultsDiv || !weightsGrid) return;
+  
+  // Show results pane with loading state
+  resultsDiv.style.display = 'block';
+  weightsGrid.innerHTML = '<div style="color:var(--text-muted); font-size:0.85rem;">Solving Markowitz Efficient Frontier...</div>';
+  expectedReturn.textContent = '--';
+  expectedVol.textContent = '--';
+  sharpeRatio.textContent = '--';
+  
+  // Call optimize endpoint
+  const res = await api.post('/api/portfolio/optimize', {});
+  
+  if (res && res.status !== 'error') {
+    // Render weights chips
+    weightsGrid.innerHTML = Object.entries(res.weights)
+      .map(([ticker, weight]) => {
+        const pct = (weight * 100).toFixed(1);
+        return `<div class="optimizer-chip">${ticker}: <span>${pct}%</span></div>`;
+      })
+      .join('');
+      
+    // Render metrics
+    expectedReturn.textContent = `${(res.expected_return * 100).toFixed(2)}%`;
+    expectedVol.textContent = `${(res.expected_volatility * 100).toFixed(2)}%`;
+    sharpeRatio.textContent = res.sharpe_ratio.toFixed(2);
+  } else {
+    weightsGrid.innerHTML = `<div style="color:var(--red); font-size:0.85rem;">Optimization failed: ${res ? res.message : 'Unknown error'}</div>`;
+  }
+}
+
 

@@ -28,10 +28,10 @@ class PredictionResult:
 def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResult] = None) -> PredictionResult:
     """
     Generate a trading signal from OHLCV history + optional news sentiment.
-    Returns NO_SIGNAL if confidence is below the threshold.
+    Uses Random Forest classifier if history >= 30, else falls back to rule-based scoring.
     """
-    if not history or len(history) < 14:
-        return _no_signal(ticker, "Insufficient historical data.")
+    if not history or len(history) < 5:
+        return _no_signal(ticker, "Insufficient real historical records in database (minimum 5 required).")
 
     closes  = np.array([d["close"]  for d in history], dtype=float)
     highs   = np.array([d["high"]   for d in history], dtype=float)
@@ -39,38 +39,167 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
     volumes = np.array([d["volume"] for d in history], dtype=float)
     current_price = closes[-1]
 
+    # --- Machine Learning Pipeline (Random Forest Classifier) ---
+    if len(closes) >= 30:
+        try:
+            import logging
+            from sklearn.ensemble import RandomForestClassifier
+            X = []
+            y = []
+            
+            # Construct features over historical sliding window
+            for i in range(20, len(closes) - 1):
+                window = closes[:i+1]
+                w_rsi = _rsi(window, 14)
+                w_ma20 = np.mean(window[-20:])
+                w_ma5 = np.mean(window[-5:])
+                w_ma_ratio = (w_ma5 - w_ma20) / w_ma20
+                w_up, w_low, w_mid = _bollinger(window, 20)
+                w_bb_pos = (window[-1] - w_low) / (w_up - w_low) if w_up > w_low else 0.5
+                
+                X.append([w_rsi, w_ma_ratio, w_bb_pos])
+                y.append(1 if closes[i+1] > closes[i] else 0)
+                
+            if len(X) >= 10:
+                clf = RandomForestClassifier(n_estimators=15, random_state=42)
+                clf.fit(X, y)
+                
+                # Features for today
+                today_rsi = _rsi(closes, 14)
+                today_ma20 = np.mean(closes[-20:])
+                today_ma5 = np.mean(closes[-5:])
+                today_ma_ratio = (today_ma5 - today_ma20) / today_ma20
+                today_up, today_low, today_mid = _bollinger(closes, 20)
+                today_bb_pos = (closes[-1] - today_low) / (today_up - today_low) if today_up > today_low else 0.5
+                
+                prob = clf.predict_proba([[today_rsi, today_ma_ratio, today_bb_pos]])[0]
+                prob_up = float(prob[1])
+                
+                # Sentiment integration
+                sent_mult = 0.0
+                if sentiment:
+                    if sentiment.label == "POSITIVE":
+                        sent_mult = sentiment.score * 0.15
+                    elif sentiment.label == "NEGATIVE":
+                        sent_mult = -sentiment.score * 0.15
+                        
+                final_prob = np.clip(prob_up + sent_mult, 0.0, 1.0)
+                
+                # Decide direction & Scale confidence to 0.50 - 0.99
+                distance = abs(final_prob - 0.50)
+                confidence = round(min(0.99, 0.50 + distance * 1.96), 3)
+                
+                if final_prob >= 0.55:
+                    direction = "BUY"
+                elif final_prob <= 0.45:
+                    direction = "SELL"
+                else:
+                    direction = "HOLD"
+                    confidence = 0.50
+                    
+                reasons = [
+                    f"ML Engine: Trained Random Forest model on {len(X)} historical bars.",
+                    f"Class probability of upward movement: {prob_up:.1%}.",
+                ]
+                if sentiment:
+                    reasons.append(f"News sentiment ({sentiment.label}) adjusted final probability to {final_prob:.1%}.")
+                    
+                # ATR stop-loss and target calculations
+                atr = _atr(highs, lows, closes, 14)
+                if direction == "BUY":
+                    target = round(current_price + 2.5 * atr, 2)
+                    risk = "LOW" if confidence > 0.85 else "MEDIUM"
+                    reasons.append(f"ATR Volatility ({atr:.2f}) target set at {target:.2f} (+2.5 ATR)")
+                elif direction == "SELL":
+                    target = round(current_price - 2.5 * atr, 2)
+                    risk = "MEDIUM" if confidence > 0.85 else "HIGH"
+                    reasons.append(f"ATR Volatility ({atr:.2f}) target set at {target:.2f} (-2.5 ATR)")
+                else:
+                    target = None
+                    risk = "MEDIUM"
+                    reasons.append("No active signal issued (market direction neutral).")
+                    
+                # Strict confidence threshold check
+                if confidence < CONFIDENCE_THRESHOLD and direction in ["BUY", "SELL"]:
+                    return PredictionResult(
+                        ticker=ticker,
+                        direction=SILENCE_LABEL,
+                        confidence=confidence,
+                        reasoning=["ML Classifier confidence below 95% threshold.", "No high-probability signal issued."],
+                        signal_strength="NONE",
+                        risk_level="UNKNOWN",
+                    )
+                    
+                strength = "STRONG" if confidence >= 0.85 else ("MODERATE" if confidence >= 0.75 else "WEAK")
+                
+                # Expected Timeframe Calculation
+                timeframe = None
+                if direction in ["BUY", "SELL"] and target is not None:
+                    if len(closes) > 1:
+                        pct_changes = np.diff(closes) / closes[:-1]
+                        volatility = float(np.std(pct_changes))
+                    else:
+                        volatility = 0.02
+                    volatility = max(0.005, volatility)
+                    pct_distance = abs(target - current_price) / current_price
+                    expected_days = pct_distance / (volatility * 1.2)
+                    min_days = max(1, int(round(expected_days * 0.75)))
+                    max_days = max(min_days + 1, int(round(expected_days * 1.25)))
+                    timeframe = f"{min_days}-{max_days} days"
+                
+                return PredictionResult(
+                    ticker=ticker,
+                    direction=direction,
+                    confidence=round(confidence, 3),
+                    reasoning=reasons,
+                    signal_strength=strength,
+                    price_target=target,
+                    risk_level=risk,
+                    timeframe=timeframe
+                )
+        except Exception as e:
+            logging.getLogger(__name__).error(f"ML predictor failed, falling back to rule-based: {e}")
+
     # ── Advanced Technical Indicators ──────────────────────────────────────────
     indicators = {}
     reasons    = []
 
-    # 1. Wilder's Smoothed RSI (14-period)
-    rsi = _rsi(closes, 14)
+    # Calculate periods dynamically (capped at history length - 1)
+    period = min(14, len(closes) - 1)
+    bb_period = min(20, len(closes))
+    vol_period = min(10, len(closes))
+
+    # 1. Wilder's Smoothed RSI
+    rsi = _rsi(closes, period)
     indicators["rsi"] = rsi
 
-    # 2. Money Flow Index (MFI) (14-period)
-    mfi = _mfi(highs, lows, closes, volumes, 14)
+    # 2. Money Flow Index (MFI)
+    mfi = _mfi(highs, lows, closes, volumes, period)
     indicators["mfi"] = mfi
 
-    # 3. Average Directional Index (ADX) (14-period)
-    adx = _adx(highs, lows, closes, 14)
+    # 3. Average Directional Index (ADX)
+    adx = _adx(highs, lows, closes, period)
     indicators["adx"] = adx
 
-    # 4. Moving Average crossover (20 vs 50)
-    if len(closes) >= 50:
-        ma20 = np.mean(closes[-20:])
-        ma50 = np.mean(closes[-50:])
-        indicators["ma_cross"] = "bullish" if ma20 > ma50 else "bearish"
+    # 4. Moving Average crossover
+    ma_short = min(20, len(closes) // 2)
+    ma_long = min(50, len(closes) - 1)
+    if ma_short > 1 and ma_long > ma_short:
+        ma_short_val = np.mean(closes[-ma_short:])
+        ma_long_val = np.mean(closes[-ma_long:])
+        indicators["ma_cross"] = "bullish" if ma_short_val > ma_long_val else "bearish"
     else:
-        ma20 = np.mean(closes)
-        ma50 = np.mean(closes)
         indicators["ma_cross"] = "neutral"
 
     # 5. MACD (12/26/9)
-    macd_line, signal_line = _macd(closes)
-    indicators["macd"] = "bullish" if macd_line > signal_line else "bearish"
+    if len(closes) >= 26:
+        macd_line, signal_line = _macd(closes)
+        indicators["macd"] = "bullish" if macd_line > signal_line else "bearish"
+    else:
+        indicators["macd"] = "neutral"
 
-    # 6. Bollinger Bands (20-period)
-    upper, lower, mid = _bollinger(closes, 20)
+    # 6. Bollinger Bands
+    upper, lower, mid = _bollinger(closes, bb_period)
     if current_price < lower:
         indicators["bb"] = "oversold"
     elif current_price > upper:
@@ -79,7 +208,7 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
         indicators["bb"] = "neutral"
 
     # 7. Volume trend
-    avg_vol = np.mean(volumes[-10:])
+    avg_vol = np.mean(volumes[-vol_period:])
     recent_vol = volumes[-1]
     if recent_vol > avg_vol * 1.5:
         indicators["volume"] = "high"

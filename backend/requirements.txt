@@ -13,3 +13,5 @@ pytz==2024.1
 beautifulsoup4==4.12.3
 lxml==5.2.2
 africastalking==1.2.3
+yfinance==0.2.40
+scipy==1.13.0

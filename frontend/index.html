@@ -174,7 +174,21 @@
       <div class="chart-panel" style="flex: 2; min-width: 320px;">
         <div class="section-header">
           <h2 class="section-title">My Portfolio Holdings</h2>
-          <button class="btn-primary" id="btn-show-buy-modal" onclick="document.getElementById('buy-modal').style.display='flex'" style="padding:0.4rem 0.8rem; font-size:0.85rem; border-radius:6px; cursor:pointer;">+ Record Purchase</button>
+          <div style="display:flex; gap:0.5rem;">
+            <button class="btn-primary" id="btn-show-buy-modal" onclick="document.getElementById('buy-modal').style.display='flex'" style="padding:0.4rem 0.8rem; font-size:0.85rem; border-radius:6px; cursor:pointer;">+ Record Purchase</button>
+            <button class="btn-primary" id="btn-optimize-portfolio" onclick="runPortfolioOptimization()" style="background:var(--accent); border-color:var(--accent); padding:0.4rem 0.8rem; font-size:0.85rem; border-radius:6px; cursor:pointer;">📊 AI Optimize</button>
+          </div>
+        </div>
+        <div class="portfolio-optimize-bar" id="portfolio-optimizer-results" style="display:none; margin-top:1rem; padding:1.2rem; background:rgba(124, 77, 255, 0.05); border-radius:8px; border:1px solid var(--accent); transition: all 0.3s ease;">
+          <h3 style="font-size: 1rem; margin-top: 0; margin-bottom: 0.8rem; display: flex; align-items: center; gap: 6px; color: var(--accent);">
+            <span>🤖</span> Markowitz AI Allocation Weights
+          </h3>
+          <div class="optimizer-weights-grid" id="optimizer-weights-grid" style="display:flex; flex-wrap:wrap; gap:0.8rem; margin-bottom:1rem;"></div>
+          <div style="display:flex; flex-wrap:wrap; gap:1.5rem; font-size:0.82rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top:0.8rem;">
+            <div><span style="color:var(--text-muted);">Expected Return:</span> <strong id="opt-expected-return">--</strong></div>
+            <div><span style="color:var(--text-muted);">Expected Volatility:</span> <strong id="opt-expected-vol">--</strong></div>
+            <div><span style="color:var(--text-muted);">Sharpe Ratio:</span> <strong id="opt-sharpe-ratio">--</strong></div>
+          </div>
         </div>
         <div class="portfolio-summary-bar" id="portfolio-summary" style="display:flex; flex-wrap:wrap; gap:1.5rem; margin-top:1rem; padding:1rem; background:rgba(255,255,255,0.02); border-radius:8px; border:1px solid var(--border-color);">
           <div><div style="font-size:0.8rem; color:var(--text-muted);">Total Cost</div><div style="font-size:1.2rem; font-weight:700;" id="port-total-cost">KES 0.00</div></div>
@@ -349,5 +363,38 @@
       bootDashboard();
     }
   </script>
+
+  <!-- ── COPILOT CHAT DRAWER ──────────────────────────────── -->
+  <button class="copilot-toggle-btn" id="copilot-toggle-btn" onclick="toggleCopilotDrawer()" title="Open AI Copilot">
+    <span>🤖</span>
+  </button>
+
+  <div class="copilot-drawer" id="copilot-drawer">
+    <div class="copilot-header">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:1.25rem;">🤖</span>
+        <div>
+          <div style="font-weight:700; font-size:0.95rem; color:#fff;">NSE AI Copilot</div>
+          <div style="font-size:0.75rem; color:var(--text-muted);">Active RAG Investment Assistant</div>
+        </div>
+      </div>
+      <button class="copilot-close-btn" onclick="toggleCopilotDrawer()">✕</button>
+    </div>
+    <div class="copilot-messages" id="copilot-messages">
+      <div class="copilot-msg system">
+        <h3>👋 Hello! I'm your NSE AI Investment Copilot.</h3>
+        <p>I can analyze stock prices, check your portfolio performance, or recommend trades using real-time NSE data. Try asking:</p>
+        <ul style="margin-top:0.4rem; padding-left:1.2rem; font-size:0.8rem; color: var(--text-secondary);">
+          <li>Analyze Safaricom (SCOM)</li>
+          <li>How is my portfolio performing?</li>
+          <li>What are the top gaining stocks today?</li>
+        </ul>
+      </div>
+    </div>
+    <div class="copilot-input-area">
+      <input type="text" id="copilot-input" placeholder="Type a message or mention a ticker..." onkeydown="if(event.key === 'Enter') sendCopilotMessage()" />
+      <button onclick="sendCopilotMessage()">Send</button>
+    </div>
+  </div>
 </body>
 </html>

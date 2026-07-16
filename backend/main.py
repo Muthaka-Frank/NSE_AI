@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 from routers import stocks, news, recommendations
 from routers import auth as auth_router
-from routers import watchlist, alerts
+from routers import watchlist, alerts, copilot
 from auth.database import init_db
 from data.scheduler import start_scheduler
 
@@ -41,6 +41,7 @@ app.include_router(recommendations.router)
 app.include_router(auth_router.router)
 app.include_router(watchlist.router)
 app.include_router(alerts.router)
+app.include_router(copilot.router)
 
 
 @app.get("/")

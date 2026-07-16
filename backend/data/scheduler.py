@@ -6,6 +6,7 @@ import logging
 from auth.database import SessionLocal
 from auth.models import StockHistory
 from data.nse_scraper import get_all_prices
+from data.yfinance_sync import sync_all_history
 
 logger = logging.getLogger(__name__)
 NAIROBI_TZ = pytz.timezone("Africa/Nairobi")
@@ -68,6 +69,14 @@ def run_daily_scrape():
 def _scheduler_loop():
     """Loops and checks time to run the scrape daily at 18:00 EAT (6:00 PM)."""
     logger.info("NSE background scheduler loop started.")
+    
+    # Pre-populate history on startup in background
+    try:
+        logger.info("Scheduler: Running startup history synchronization...")
+        sync_all_history()
+    except Exception as e:
+        logger.error("Scheduler: Startup history sync failed: %s", e)
+
     last_run_date = None
     while True:
         try:
@@ -75,6 +84,8 @@ def _scheduler_loop():
             # Run at 18:00 EAT (6:00 PM) or later if not yet run today
             if now.hour >= 18 and last_run_date != now.date():
                 run_daily_scrape()
+                # Run full history sync to capture any missed gaps
+                sync_all_history()
                 last_run_date = now.date()
         except Exception as e:
             logger.error("Error in scheduler loop: %s", e)

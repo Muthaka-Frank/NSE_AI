@@ -92,7 +92,7 @@ def get_stock_info(ticker: str) -> Optional[dict]:
 
 
 def get_historical_data(ticker: str, period: str = "6mo") -> list:
-    """Fetch OHLCV history from the local database or mock fallback."""
+    """Fetch OHLCV history from local DB (strictly real data only, no mock data)."""
     ticker = ticker.upper()
     key    = f"history_{ticker}_{period}"
     cached = _cache_get(key)
@@ -103,26 +103,39 @@ def get_historical_data(ticker: str, period: str = "6mo") -> list:
         return []
 
     data = []
-
-
-    # 3. Fall back to deterministic mock
-    if not data:
-        data = _generate_mock_history(ticker, period)
-        # Scale mock history to match the latest live scraped price
-        try:
-            live_data = nse_scraper.get_price(ticker)
-            if live_data and live_data.get("price"):
-                live_price = live_data["price"]
-                mock_latest = data[-1]["close"]
-                if mock_latest > 0:
-                    scale = live_price / mock_latest
-                    for day in data:
-                        day["open"] = round(day["open"] * scale, 2)
-                        day["high"] = round(day["high"] * scale, 2)
-                        day["low"] = round(day["low"] * scale, 2)
-                        day["close"] = round(day["close"] * scale, 2)
-        except Exception as e:
-            logging.getLogger(__name__).error("Failed to scale mock history: %s", e)
+    
+    # Query real quotes from SQLite DB
+    from auth.database import SessionLocal
+    from auth.models import StockHistory
+    db = SessionLocal()
+    try:
+        limit_days = 180
+        if period == "1mo":
+            limit_days = 30
+        elif period == "3mo":
+            limit_days = 90
+        elif period == "1y":
+            limit_days = 365
+            
+        records = db.query(StockHistory).filter(
+            StockHistory.ticker == ticker
+        ).order_by(StockHistory.date.desc()).limit(limit_days).all()
+        
+        if records:
+            # Sort ascending
+            records = sorted(records, key=lambda x: x.date)
+            data = [{
+                "date": r.date,
+                "open": r.open,
+                "high": r.high,
+                "low": r.low,
+                "close": r.close,
+                "volume": r.volume
+            } for r in records]
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Error querying StockHistory: {e}")
+    finally:
+        db.close()
 
     _cache_set(key, data, 900)
     return data

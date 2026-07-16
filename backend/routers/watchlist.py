@@ -153,3 +153,24 @@ def remove_from_portfolio(id: str, current_user: User = Depends(get_current_user
     db.delete(item)
     db.commit()
     return {"message": "Holding successfully deleted from portfolio"}
+
+@router.post("/portfolio/optimize")
+def get_portfolio_optimization(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Solve for optimal portfolio weight allocations using Markowitz Mean-Variance Optimization."""
+    # Fetch user's holdings
+    holdings = db.query(PortfolioItem).filter(PortfolioItem.user_id == current_user.id).all()
+    tickers = [h.ticker for h in holdings]
+    
+    # If portfolio is empty, fall back to watchlist
+    if not tickers:
+        watchlist = db.query(WatchlistItem).filter(WatchlistItem.user_id == current_user.id).all()
+        tickers = [w.ticker for w in watchlist]
+        
+    # If watchlist is also empty, fall back to blue-chip basket
+    if not tickers:
+        tickers = ["SCOM", "EQTY", "KCB", "EABL", "COOP"]
+        
+    from ml.optimizer import optimize_portfolio
+    result = optimize_portfolio(tickers)
+    return result
+
