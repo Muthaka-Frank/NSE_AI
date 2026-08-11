@@ -55,10 +55,28 @@ NEGATIVE_KEYWORDS = {
 
 NEGATION_WORDS = {"not", "no", "never", "despite", "without", "against"}
 
+RETROSPECTIVE_PATTERNS = [
+    r"\b(ex|former)[\s\-](\w+[\s\-])*(governor|ceo|md|minister|president|chairman|director|treasurer|chief|official|head|boss)\b",
+    r"\b(reminisced?|recollected?|recalled?|memoirs?|historical\s+perspective|looking\s+back|during\s+his\s+tenure|during\s+her\s+tenure|in\s+retrospect)\b",
+    r"\b(in\s+201[0-9]|in\s+202[0-4]|back\s+in\s+20[0-2][0-9])\b",
+]
+
+def is_retrospective_news(text: str) -> bool:
+    if not text:
+        return False
+    for pat in RETROSPECTIVE_PATTERNS:
+        if re.search(pat, text, re.IGNORECASE):
+            return True
+    return False
+
 
 def analyse(text: str) -> SentimentResult:
     if not text or not text.strip():
         return SentimentResult("NEUTRAL", 0.5, "No text provided.")
+
+    # Check for retrospective / historical news timeline
+    if is_retrospective_news(text):
+        return SentimentResult("NEUTRAL", 0.50, "Historical retrospective / past commentary — no active directional impact on current market operations.")
 
     # 1. Try FinBERT
     nlp = _get_finbert()

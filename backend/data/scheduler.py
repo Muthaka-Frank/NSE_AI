@@ -72,10 +72,10 @@ def _scheduler_loop():
     
     # Pre-populate history on startup in background
     try:
-        logger.info("Scheduler: Running startup history synchronization...")
-        sync_all_history()
+        logger.info("Scheduler: Running startup daily scrape...")
+        run_daily_scrape()
     except Exception as e:
-        logger.error("Scheduler: Startup history sync failed: %s", e)
+        logger.error("Scheduler: Startup daily scrape failed: %s", e)
 
     last_run_date = None
     while True:

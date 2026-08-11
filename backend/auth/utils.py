@@ -4,7 +4,7 @@ JWT creation/verification, bcrypt password hashing, Google token verification.
 """
 import os
 import bcrypt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from jose import JWTError, jwt
@@ -31,8 +31,9 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     payload = data.copy()
-    expire  = datetime.utcnow() + (expires_delta or timedelta(days=JWT_EXPIRE_DAYS))
-    payload.update({"exp": expire, "iat": datetime.utcnow()})
+    now_utc = datetime.now(timezone.utc)
+    expire  = now_utc + (expires_delta or timedelta(days=JWT_EXPIRE_DAYS))
+    payload.update({"exp": expire, "iat": now_utc})
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 

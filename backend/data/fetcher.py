@@ -7,7 +7,6 @@ Parallel fetching with in-memory TTL cache.
 """
 
 import logging
-import warnings
 import feedparser
 import pytz
 import random
@@ -157,7 +156,17 @@ def get_news_feed(ticker_filter: Optional[str] = None) -> list:
                 summary = clean_html(entry.get("summary", entry.get("description", "")))
                 link    = entry.get("link", "")
                 pub     = entry.get("published", datetime.now().strftime("%a, %d %b %Y %H:%M:%S +0000"))
-                related = _extract_tickers(title + " " + summary)
+                
+                raw_related = _extract_tickers(title + " " + summary)
+                from ml.relevance import evaluate_relevance
+                related = []
+                for t in raw_related:
+                    meta = NSE_STOCKS.get(t, {})
+                    company_name = meta.get("name", t)
+                    score = evaluate_relevance(t, company_name, title, summary, total_matches=len(raw_related))
+                    if score >= 0.40:
+                        related.append(t)
+                        
                 if ticker_filter and ticker_filter.upper() not in related:
                     continue
                 items.append({

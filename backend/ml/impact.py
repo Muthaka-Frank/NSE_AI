@@ -6,7 +6,7 @@ For each news article, determines per-ticker impact:
   confidence: 0.0 - 1.0
 """
 
-from ml.sentiment import analyse, SentimentResult
+from ml.sentiment import analyse, SentimentResult, is_retrospective_news
 from data.stocks_registry import NSE_STOCKS
 
 SECTOR_MAP = {}
@@ -30,7 +30,7 @@ refresh_sector_maps()
 # Format: (keywords, affected_sectors_or_tickers, direction, reason_template)
 DOMAIN_RULES = [
     # Interest rates
-    ({"interest rate", "cbk rate", "central bank rate", "mpr"},
+    ({"interest rate", "cbk rate", "central bank rate", "mpr", "rate hike"},
      ["Banking"], "POSITIVE",
      "Higher interest rates typically widen banking net interest margins"),
     ({"rate cut", "lower rates", "rate reduction"},
@@ -38,7 +38,7 @@ DOMAIN_RULES = [
      "Rate cuts compress banking net interest margins"),
 
     # Inflation
-    ({"inflation", "cpi", "cost of living"},
+    ({"inflation hike", "rising inflation", "cpi spike", "high inflation", "inflation rises"},
      ["Consumer Staples", "Manufacturing"], "NEGATIVE",
      "Rising inflation squeezes consumer goods margins"),
     ({"inflation", "cpi"},
@@ -46,7 +46,7 @@ DOMAIN_RULES = [
      "Elevated inflation can erode real loan book returns"),
 
     # Fuel / energy
-    ({"fuel", "electricity", "power tariff", "energy costs"},
+    ({"fuel tariff", "electricity tariff", "power tariff", "energy costs", "tariff hike", "electricity hike"},
      ["Manufacturing", "Consumer Staples"], "NEGATIVE",
      "Higher energy costs increase production expenses"),
     ({"fuel levy", "tariff hike", "electricity tariff"},
@@ -57,7 +57,7 @@ DOMAIN_RULES = [
     ({"mobile money", "mpesa", "m-pesa", "fintech"},
      ["Telecommunications"], "POSITIVE",
      "Mobile money growth expands transaction revenue"),
-    ({"data prices", "mobile data", "sim card"},
+    ({"data price cut", "mobile data regulation", "sim card registration"},
      ["Telecommunications"], "NEGATIVE",
      "Regulatory pressure on data prices limits revenue growth"),
 
@@ -67,18 +67,18 @@ DOMAIN_RULES = [
      "Broad market news — monitor for sector-specific developments"),
 
     # Shilling / forex
-    ({"shilling", "kes", "forex", "exchange rate", "dollar"},
+    ({"shilling depreciation", "weakening shilling", "kes depreciation", "weak shilling", "shilling fall", "falling shilling"},
      ["Consumer Staples", "Manufacturing"], "NEGATIVE",
      "Shilling weakness raises cost of imported inputs"),
-    ({"shilling", "kes"},
+    ({"shilling volatility", "currency volatility", "kes volatility", "forex volatility"},
      ["Banking"], "POSITIVE",
      "Currency volatility can boost forex trading income"),
 
     # Government / taxation
-    ({"tax", "vat", "excise", "levy"},
+    ({"tax hike", "new tax", "vat hike", "excise duty", "new levy", "increased taxation"},
      ["Consumer Staples"], "NEGATIVE",
      "Higher taxation on consumer goods reduces demand"),
-    ({"government contract", "public tender", "infrastructure"},
+    ({"government contract", "public tender", "infrastructure contract"},
      ["Manufacturing"], "POSITIVE",
      "Government contracts provide stable order books"),
 ]
@@ -89,6 +89,7 @@ def analyse_ticker_impacts(article: dict) -> dict:
     For a news article, return a dict mapping each related ticker
     to its impact: {direction, reason, confidence, is_direct}.
     """
+    import re
     refresh_sector_maps()
     title   = article.get("title", "")
     summary = article.get("summary", "")
@@ -97,6 +98,17 @@ def analyse_ticker_impacts(article: dict) -> dict:
 
     overall = analyse(title + " " + summary)
     impacts: dict = {}
+
+    # If article is historical / retrospective, bypass spillover domain rules entirely
+    if is_retrospective_news(text):
+        for ticker in tickers:
+            impacts[ticker] = {
+                "direction":  "NEUTRAL",
+                "reason":     "Historical retrospective / past commentary — no active market impact.",
+                "confidence": 0.50,
+                "is_direct":  True,
+            }
+        return impacts
 
     # 1. Direct ticker mentions — use overall article sentiment
     for ticker in tickers:
@@ -110,7 +122,15 @@ def analyse_ticker_impacts(article: dict) -> dict:
 
     # 2. Domain rules — may add additional affected tickers (sector spillover)
     for keywords, targets, direction, reason in DOMAIN_RULES:
-        if not any(kw in text for kw in keywords):
+        # Match whole words / phrases only (e.g. prevent "vat" matching "innovation")
+        matched = False
+        for kw in keywords:
+            pattern = rf"\b{re.escape(kw)}\b"
+            if re.search(pattern, text, re.IGNORECASE):
+                matched = True
+                break
+
+        if not matched:
             continue
 
         affected_tickers = []

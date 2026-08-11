@@ -2,14 +2,13 @@
 NSE AI Platform — Conversational Copilot Router
 """
 import os
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from auth.database import get_db
 from auth.dependencies import get_current_user
-from auth.models import User, WatchlistItem, PortfolioItem
+from auth.models import User, PortfolioItem
 from data.fetcher import get_all_stocks, get_stock_info, get_news_feed
-from ml.predictor import predict
 from data.stocks_registry import NSE_STOCKS
 import httpx
 

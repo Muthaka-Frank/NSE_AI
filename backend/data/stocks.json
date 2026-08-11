@@ -424,5 +424,11 @@
         "sector": "Investment",
         "yahoo": "TRFC.NR",
         "base_price": 1.23
+    },
+    "HFCB": {
+        "name": "HFCB Group",
+        "sector": "Investment",
+        "yahoo": "HFCB.NR",
+        "base_price": 11.9
     }
 }

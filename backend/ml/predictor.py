@@ -9,8 +9,11 @@ from dataclasses import dataclass
 from typing import Optional
 from ml.sentiment import SentimentResult
 
-CONFIDENCE_THRESHOLD = 0.95   # Minimum to issue a signal (configurable)
+CONFIDENCE_THRESHOLD = 0.75   # Lowered from 0.95 for better signal generation
 SILENCE_LABEL = "NO_SIGNAL"
+
+# Global toggle to halt/enable ML Random Forest model across the platform
+ENABLE_ML_MODEL = False
 
 
 @dataclass
@@ -28,7 +31,7 @@ class PredictionResult:
 def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResult] = None) -> PredictionResult:
     """
     Generate a trading signal from OHLCV history + optional news sentiment.
-    Uses Random Forest classifier if history >= 30, else falls back to rule-based scoring.
+    Uses Random Forest classifier if ENABLE_ML_MODEL is True, else uses Technical + Sentiment Engine.
     """
     if not history or len(history) < 5:
         return _no_signal(ticker, "Insufficient real historical records in database (minimum 5 required).")
@@ -40,7 +43,8 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
     current_price = closes[-1]
 
     # --- Machine Learning Pipeline (Random Forest Classifier) ---
-    if len(closes) >= 30:
+    # Unconditionally halted until ENABLE_ML_MODEL is set to True
+    if ENABLE_ML_MODEL:
         try:
             import logging
             from sklearn.ensemble import RandomForestClassifier
@@ -61,8 +65,11 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
                 y.append(1 if closes[i+1] > closes[i] else 0)
                 
             if len(X) >= 10:
-                clf = RandomForestClassifier(n_estimators=15, random_state=42)
-                clf.fit(X, y)
+                import warnings
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    clf = RandomForestClassifier(n_estimators=15, random_state=42, n_jobs=1)
+                    clf.fit(X, y)
                 
                 # Features for today
                 today_rsi = _rsi(closes, 14)
@@ -184,10 +191,10 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
     # 4. Moving Average crossover
     ma_short = min(20, len(closes) // 2)
     ma_long = min(50, len(closes) - 1)
+    ma20 = np.mean(closes[-ma_short:]) if ma_short > 1 else current_price
+    ma50 = np.mean(closes[-ma_long:]) if ma_long > ma_short else current_price
     if ma_short > 1 and ma_long > ma_short:
-        ma_short_val = np.mean(closes[-ma_short:])
-        ma_long_val = np.mean(closes[-ma_long:])
-        indicators["ma_cross"] = "bullish" if ma_short_val > ma_long_val else "bearish"
+        indicators["ma_cross"] = "bullish" if ma20 > ma50 else "bearish"
     else:
         indicators["ma_cross"] = "neutral"
 
@@ -216,12 +223,17 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
         indicators["volume"] = "normal"
 
     # ── Trend-Adaptive Dynamic Scoring & Reasoning ──────────────────────────────
-    # Base weightings adapt dynamically depending on the trend strength (ADX)
+    reasons.append("Engine Mode: 7-Indicator Technical & Sentiment Fusion (ML Random Forest algorithm globally halted).")
     is_trending = adx > 25
     is_ranging = adx < 20
 
     bull_signals = 0
     bear_signals = 0
+
+    # Determine trend direction
+    ma_cross = indicators.get("ma_cross", "neutral")
+    is_uptrend = (ma_cross == "bullish")
+    is_downtrend = (ma_cross == "bearish")
 
     # Log Trend state
     if is_trending:
@@ -232,28 +244,49 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
         reasons.append(f"ADX {adx:.1f} shows moderate trend strength. Evaluating balanced indicator set.")
 
     # Oscillator evaluations (RSI & MFI)
-    # Strong consensus when both RSI & MFI point to oversold/overbought
     if rsi < 35 and mfi < 35:
-        bull_signals += 3 if is_ranging else 2
-        reasons.append(f"Bullish consensus: RSI ({rsi:.1f}) & MFI ({mfi:.1f}) are both in oversold territory")
+        if is_trending and is_downtrend:
+            bear_signals += 2
+            reasons.append(f"Bearish momentum: RSI ({rsi:.1f}) & MFI ({mfi:.1f}) confirm strong oversold downtrend velocity")
+        else:
+            bull_signals += 3 if is_ranging else 2
+            reasons.append(f"Bullish consensus: RSI ({rsi:.1f}) & MFI ({mfi:.1f}) are both in oversold territory")
     elif rsi > 65 and mfi > 65:
-        bear_signals += 3 if is_ranging else 2
-        reasons.append(f"Bearish consensus: RSI ({rsi:.1f}) & MFI ({mfi:.1f}) are both in overbought territory")
+        if is_trending and is_uptrend:
+            bull_signals += 2
+            reasons.append(f"Bullish momentum: RSI ({rsi:.1f}) & MFI ({mfi:.1f}) confirm strong overbought uptrend velocity")
+        else:
+            bear_signals += 3 if is_ranging else 2
+            reasons.append(f"Bearish consensus: RSI ({rsi:.1f}) & MFI ({mfi:.1f}) are both in overbought territory")
     else:
         # Separate evaluations
         if rsi < 30:
-            bull_signals += 2 if is_ranging else 1
-            reasons.append(f"RSI ({rsi:.1f}) is oversold")
+            if is_trending and is_downtrend:
+                bear_signals += 1
+                reasons.append(f"RSI ({rsi:.1f}) shows high-velocity downward momentum")
+            else:
+                bull_signals += 2 if is_ranging else 1
+                reasons.append(f"RSI ({rsi:.1f}) is oversold")
         elif rsi > 70:
-            bear_signals += 2 if is_ranging else 1
-            reasons.append(f"RSI ({rsi:.1f}) is overbought")
+            if is_trending and is_uptrend:
+                bull_signals += 1
+                reasons.append(f"RSI ({rsi:.1f}) shows high-velocity upward momentum")
+            else:
+                bear_signals += 2 if is_ranging else 1
+                reasons.append(f"RSI ({rsi:.1f}) is overbought")
         
         if mfi < 30:
-            bull_signals += 1
-            reasons.append(f"MFI ({mfi:.1f}) indicates buying pressure build-up")
+            if is_trending and is_downtrend:
+                bear_signals += 1
+            else:
+                bull_signals += 1
+                reasons.append(f"MFI ({mfi:.1f}) indicates buying pressure build-up")
         elif mfi > 70:
-            bear_signals += 1
-            reasons.append(f"MFI ({mfi:.1f}) indicates distribution/selling pressure")
+            if is_trending and is_uptrend:
+                bull_signals += 1
+            else:
+                bear_signals += 1
+                reasons.append(f"MFI ({mfi:.1f}) indicates distribution/selling pressure")
 
     # Moving Average Crossover (High weight in trending markets, penalized/disabled in ranging)
     ma_cross = indicators.get("ma_cross")
@@ -273,13 +306,13 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
             reasons.append(f"MA20 ({ma20:.2f}) is below MA50 ({ma50:.2f}) - bearish crossover")
 
     # MACD (Trend-following)
-    if indicators["macd"] == "bullish":
+    if indicators.get("macd") == "bullish":
         bull_signals += 2 if is_trending else 1
         if is_trending:
             reasons.append("MACD shows strong upward momentum (confirmed by trend)")
         else:
             reasons.append("MACD is above signal line - positive momentum")
-    else:
+    elif indicators.get("macd") == "bearish":
         bear_signals += 2 if is_trending else 1
         if is_trending:
             reasons.append("MACD shows strong downward momentum (confirmed by trend)")
@@ -288,11 +321,19 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
 
     # Bollinger Bands (Mean-reversion - High weight in ranging markets)
     if indicators["bb"] == "oversold":
-        bull_signals += 2 if is_ranging else 1
-        reasons.append(f"Price ({current_price:.2f}) pierced lower Bollinger Band - oversold bounce expected")
+        if is_trending and is_downtrend:
+            bear_signals += 1
+            reasons.append(f"Price ({current_price:.2f}) broke below lower Bollinger Band, confirming bearish expansion")
+        else:
+            bull_signals += 2 if is_ranging else 1
+            reasons.append(f"Price ({current_price:.2f}) pierced lower Bollinger Band - oversold bounce expected")
     elif indicators["bb"] == "overbought":
-        bear_signals += 2 if is_ranging else 1
-        reasons.append(f"Price ({current_price:.2f}) pierced upper Bollinger Band - pullback expected")
+        if is_trending and is_uptrend:
+            bull_signals += 1
+            reasons.append(f"Price ({current_price:.2f}) broke above upper Bollinger Band, confirming bullish expansion")
+        else:
+            bear_signals += 2 if is_ranging else 1
+            reasons.append(f"Price ({current_price:.2f}) pierced upper Bollinger Band - pullback expected")
 
     # Volume trend
     if indicators["volume"] == "high":
@@ -306,10 +347,10 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
     # Sentiment fusion (adds up to 2 points each direction)
     if sentiment:
         if sentiment.label == "POSITIVE":
-            bull_signals += int(sentiment.score * 2)
+            bull_signals += round(sentiment.score * 2)
             reasons.append(f"News sentiment: POSITIVE ({sentiment.score:.0%}) - {sentiment.reasoning}")
         elif sentiment.label == "NEGATIVE":
-            bear_signals += int(sentiment.score * 2)
+            bear_signals += round(sentiment.score * 2)
             reasons.append(f"News sentiment: NEGATIVE ({sentiment.score:.0%}) - {sentiment.reasoning}")
 
     total = bull_signals + bear_signals

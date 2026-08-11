@@ -26,7 +26,6 @@ async def stream_stocks():
     async def generator():
         while True:
             try:
-                clear_cache()  # Always fetch fresh from Yahoo Finance
                 stocks  = get_all_stocks()
                 payload = json.dumps({
                     "type":      "stocks_update",

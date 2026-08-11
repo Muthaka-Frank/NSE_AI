@@ -2,8 +2,8 @@
 NSE AI Platform — Authentication Router
 """
 import os
-from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import datetime, timezone
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
 
@@ -58,7 +58,7 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account disabled")
 
-    user.last_login = datetime.utcnow()
+    user.last_login = datetime.now(timezone.utc)
     db.commit()
 
     token = create_access_token({"sub": user.id, "email": user.email})
@@ -92,7 +92,7 @@ def google_auth(body: GoogleAuthRequest, db: Session = Depends(get_db)):
         if user.provider == "email":
             user.provider = "google+email"  # linked account
 
-    user.last_login = datetime.utcnow()
+    user.last_login = datetime.now(timezone.utc)
     db.commit()
     db.refresh(user)
 

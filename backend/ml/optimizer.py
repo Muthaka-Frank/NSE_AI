@@ -3,7 +3,6 @@ NSE AI Platform — Portfolio Mean-Variance Optimization (Markowitz Efficient Fr
 """
 import numpy as np
 import pandas as pd
-from sqlalchemy import select
 from auth.database import SessionLocal
 from auth.models import StockHistory
 from data.stocks_registry import NSE_STOCKS

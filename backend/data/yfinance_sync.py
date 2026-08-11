@@ -10,7 +10,6 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from auth.database import SessionLocal
 from auth.models import StockHistory
-from data.stocks_registry import NSE_STOCKS
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +48,10 @@ def sync_stock_history(ticker: str, period: str = "6mo") -> int:
     finally:
         db.close()
 
-    url = f"https://afx.kwayisi.org/nse/{ticker.lower()}.html"
+    # Map ticker to Kwayisi ticker name if mapped (e.g. STND -> SCBK, KENR -> KNRE)
+    from data.nse_scraper import _TICKER_MAP
+    kwayisi_ticker = _TICKER_MAP.get(ticker, ticker)
+    url = f"https://afx.kwayisi.org/nse/{kwayisi_ticker.lower()}.html"
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -160,9 +162,31 @@ def sync_stock_history(ticker: str, period: str = "6mo") -> int:
         return 0
 
 def sync_all_history(period: str = "6mo") -> int:
-    """Syncs history for all registered NSE stocks with rate-limiting controls."""
+    """Syncs history for active user stocks (watchlist & portfolio) with rate-limiting controls."""
     total_added = 0
-    tickers = list(NSE_STOCKS.keys())
+    
+    # Query database to find user-active tickers
+    db = SessionLocal()
+    active_tickers = set()
+    try:
+        from auth.models import WatchlistItem, PortfolioItem
+        # Get watchlist tickers
+        wl = db.query(WatchlistItem.ticker).distinct().all()
+        active_tickers.update([w[0].upper().strip() for w in wl if w[0]])
+        # Get portfolio tickers
+        pf = db.query(PortfolioItem.ticker).distinct().all()
+        active_tickers.update([p[0].upper().strip() for p in pf if p[0]])
+    except Exception as e:
+        logger.warning(f"Error querying active tickers for bulk sync: {e}")
+    finally:
+        db.close()
+
+    # Fallback to top core tickers if no active items yet to keep dashboard loaded
+    if not active_tickers:
+        active_tickers = {"SCOM", "EQTY", "KCB", "COOP", "BRIT", "EABL", "ABSA", "NCBA"}
+        
+    tickers = sorted(list(active_tickers))
+    logger.info(f"Targeting active/core tickers for history sync: {tickers}")
     
     for index, ticker in enumerate(tickers):
         # Break immediately if circuit breaker got triggered in a previous loop step

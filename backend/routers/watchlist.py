@@ -1,11 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from auth.database import get_db
 from auth.dependencies import get_current_user
 from auth.models import User, WatchlistItem, PortfolioItem
-from data.nse_scraper import get_price, get_all_prices
+from data.nse_scraper import get_price
 from pydantic import BaseModel
-from typing import List
 
 router = APIRouter(prefix="/api", tags=["Watchlist & Portfolio"])
 
