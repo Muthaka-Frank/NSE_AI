@@ -63,6 +63,7 @@ const api = {
   async getStocks()            { return this.get('/api/stocks'); },
   async getStock(ticker)       { return this.get(`/api/stocks/${ticker}`); },
   async getHistory(ticker, period = '3mo') { return this.get(`/api/stocks/${ticker}/history?period=${period}`); },
+  async getIntraday(ticker)    { return this.get(`/api/stocks/${ticker}/intraday`); },
   async getPrediction(ticker)  { return this.get(`/api/stocks/${ticker}/prediction`); },
   async getNews(ticker = null) { return this.get(`/api/news${ticker ? `?ticker=${ticker}` : ''}`); },
   async getRecommendations()   { return this.get('/api/recommendations'); },

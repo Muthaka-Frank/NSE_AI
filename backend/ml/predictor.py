@@ -8,12 +8,11 @@ import numpy as np
 from dataclasses import dataclass
 from typing import Optional
 from ml.sentiment import SentimentResult
+from core.config import settings
 
-CONFIDENCE_THRESHOLD = 0.75   # Lowered from 0.95 for better signal generation
+CONFIDENCE_THRESHOLD = settings.CONFIDENCE_THRESHOLD
 SILENCE_LABEL = "NO_SIGNAL"
-
-# Global toggle to halt/enable ML Random Forest model across the platform
-ENABLE_ML_MODEL = False
+ENABLE_ML_MODEL = settings.ENABLE_ML_MODEL
 
 
 @dataclass
@@ -41,6 +40,28 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
     lows    = np.array([d["low"]    for d in history], dtype=float)
     volumes = np.array([d["volume"] for d in history], dtype=float)
     current_price = closes[-1]
+
+    # ── Illiquidity & Trading Volume Guardrail ──────────────────────────────────
+    recent_vols = volumes[-min(10, len(volumes)):]
+    zero_vol_days = int(np.sum(recent_vols <= 0))
+    avg_recent_vol = float(np.mean(recent_vols)) if len(recent_vols) > 0 else 0.0
+    
+    if len(recent_vols) >= 5:
+        zero_ratio = zero_vol_days / len(recent_vols)
+        if zero_ratio >= 0.60 or (avg_recent_vol < 1000 and len(history) >= 10):
+            return PredictionResult(
+                ticker=ticker,
+                direction=SILENCE_LABEL,
+                confidence=0.35,
+                reasoning=[
+                    f"Liquidity Guardrail: Low trading activity (avg {int(avg_recent_vol):,} shares/day, {zero_vol_days}/{len(recent_vols)} zero-volume sessions).",
+                    "Signal suppressed to protect against illiquidity traps and artificial oscillator swings."
+                ],
+                signal_strength="NONE",
+                price_target=None,
+                risk_level="HIGH",
+                timeframe=None,
+            )
 
     # --- Machine Learning Pipeline (Random Forest Classifier) ---
     # Unconditionally halted until ENABLE_ML_MODEL is set to True
@@ -353,6 +374,31 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
             bear_signals += round(sentiment.score * 2)
             reasons.append(f"News sentiment: NEGATIVE ({sentiment.score:.0%}) - {sentiment.reasoning}")
 
+    # ── Multi-Timeframe (MTF) Macro Trend Alignment ─────────────────────────────
+    macro_trend = "neutral"
+    if len(closes) >= 30:
+        macro_window = min(50, len(closes))
+        macro_ma = float(np.mean(closes[-macro_window:]))
+        if current_price > macro_ma * 1.01 and ma20 >= macro_ma:
+            macro_trend = "bullish"
+        elif current_price < macro_ma * 0.99 and ma20 <= macro_ma:
+            macro_trend = "bearish"
+
+    if bull_signals > bear_signals:
+        if macro_trend == "bullish":
+            bull_signals += 2
+            reasons.append(f"Multi-Timeframe Alignment: Short-term momentum confirmed by 50-day macro uptrend (MA50: {ma50:.2f})")
+        elif macro_trend == "bearish":
+            bear_signals += 1
+            reasons.append(f"Macro Headwind: Short-term setup is counter-trend against 50-day macro downtrend (MA50: {ma50:.2f})")
+    elif bear_signals > bull_signals:
+        if macro_trend == "bearish":
+            bear_signals += 2
+            reasons.append(f"Multi-Timeframe Alignment: Short-term breakdown confirmed by 50-day macro downtrend (MA50: {ma50:.2f})")
+        elif macro_trend == "bullish":
+            bull_signals += 1
+            reasons.append(f"Macro Support: Short-term pullback is testing 50-day macro uptrend support (MA50: {ma50:.2f})")
+
     total = bull_signals + bear_signals
     if total == 0:
         return _no_signal(ticker, "No clear technical signals detected.")
@@ -364,12 +410,16 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
     # Normalise confidence to 0.5–0.99
     confidence = round(min(0.99, 0.50 + (raw_conf - 0.50) * 0.98), 3)
 
+    # ── Key Support & Resistance Pivot Points ──────────────────────────────────
+    pivots = _pivot_points(highs[-1], lows[-1], closes[-1])
+    reasons.append(f"Key Pivot Levels: Pivot {pivots['pivot']}, Support {pivots['s1']}, Resistance {pivots['r1']}")
+
     if confidence < CONFIDENCE_THRESHOLD:
         return PredictionResult(
             ticker=ticker,
             direction=SILENCE_LABEL,
             confidence=confidence,
-            reasoning=["Confidence below threshold - market direction unclear.", "Holding pattern. No signal issued."],
+            reasoning=["Confidence below threshold - market direction unclear.", "Holding pattern. No signal issued."] + reasons,
             signal_strength="NONE",
             risk_level="UNKNOWN",
         )
@@ -576,6 +626,22 @@ def _bollinger(closes: np.ndarray, period: int = 20):
     mid   = np.mean(closes[-period:])
     std   = np.std(closes[-period:])
     return mid + 2 * std, mid - 2 * std, mid
+
+
+def _pivot_points(high: float, low: float, close: float) -> dict:
+    """Calculate standard floor pivot points with S1, S2, R1, R2."""
+    p = (high + low + close) / 3.0
+    r1 = 2 * p - low
+    s1 = 2 * p - high
+    r2 = p + (high - low)
+    s2 = p - (high - low)
+    return {
+        "pivot": round(p, 2),
+        "r1": round(r1, 2),
+        "s1": round(s1, 2),
+        "r2": round(r2, 2),
+        "s2": round(s2, 2),
+    }
 
 
 def _no_signal(ticker: str, reason: str) -> PredictionResult:

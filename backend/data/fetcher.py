@@ -140,6 +140,81 @@ def get_historical_data(ticker: str, period: str = "6mo") -> list:
     return data
 
 
+def get_batch_historical_data(tickers: list[str], period: str = "3mo") -> dict[str, list[dict]]:
+    """
+    Batch-fetches OHLCV historical records for multiple tickers in a SINGLE SQLite query.
+    Populates internal caches and returns a dict mapping ticker -> list of historical records.
+    """
+    if not tickers:
+        return {}
+
+    norm_tickers = [t.upper() for t in tickers if t.upper() in NSE_STOCKS]
+    results = {}
+    missing_tickers = []
+
+    # Check cache first for each ticker
+    for t in norm_tickers:
+        key = f"history_{t}_{period}"
+        cached = _cache_get(key)
+        if cached is not None:
+            results[t] = cached
+        else:
+            missing_tickers.append(t)
+
+    if not missing_tickers:
+        return results
+
+    limit_days = 90
+    if period == "1mo":
+        limit_days = 30
+    elif period == "6mo":
+        limit_days = 180
+    elif period == "1y":
+        limit_days = 365
+
+    from datetime import datetime, timedelta
+    cutoff_date = (datetime.now() - timedelta(days=int(limit_days * 1.6))).strftime("%Y-%m-%d")
+
+    from auth.database import SessionLocal
+    from auth.models import StockHistory
+
+    db = SessionLocal()
+    try:
+        records = db.query(StockHistory).filter(
+            StockHistory.ticker.in_(missing_tickers),
+            StockHistory.date >= cutoff_date
+        ).order_by(StockHistory.ticker, StockHistory.date.asc()).all()
+
+        # Group by ticker
+        grouped = {t: [] for t in missing_tickers}
+        for r in records:
+            if r.ticker in grouped:
+                grouped[r.ticker].append({
+                    "date": r.date,
+                    "open": r.open,
+                    "high": r.high,
+                    "low": r.low,
+                    "close": r.close,
+                    "volume": r.volume,
+                })
+
+        # Cache each ticker and assign to results (slice to limit_days)
+        for t, data in grouped.items():
+            trimmed = data[-limit_days:]
+            _cache_set(f"history_{t}_{period}", trimmed, 900)
+            results[t] = trimmed
+
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Error in get_batch_historical_data: {e}")
+        # Fallback to individual fetches on failure
+        for t in missing_tickers:
+            results[t] = get_historical_data(t, period)
+    finally:
+        db.close()
+
+    return results
+
+
 def get_news_feed(ticker_filter: Optional[str] = None) -> list:
     """Fetch RSS feeds in parallel. Cached for 10 minutes."""
     key = f"news_{ticker_filter or 'all'}"

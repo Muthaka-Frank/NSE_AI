@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime, Boolean, Float, Integer
+from sqlalchemy import Column, String, DateTime, Boolean, Float, Integer, UniqueConstraint
 from auth.database import Base
 import uuid
 
@@ -20,6 +20,9 @@ class User(Base):
 
 class StockHistory(Base):
     __tablename__ = "stock_history"
+    __table_args__ = (
+        UniqueConstraint("ticker", "date", name="uq_stock_history_ticker_date"),
+    )
 
     id      = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     ticker  = Column(String, index=True, nullable=False)
@@ -33,6 +36,9 @@ class StockHistory(Base):
 
 class WatchlistItem(Base):
     __tablename__ = "watchlist"
+    __table_args__ = (
+        UniqueConstraint("user_id", "ticker", name="uq_watchlist_user_ticker"),
+    )
 
     id          = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id     = Column(String, nullable=False, index=True)
@@ -49,4 +55,21 @@ class PortfolioItem(Base):
     buy_price   = Column(Float, nullable=False)
     quantity    = Column(Integer, nullable=False)
     created_at  = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class StockIntraday(Base):
+    __tablename__ = "stock_intraday"
+    __table_args__ = (
+        UniqueConstraint("ticker", "date", "time", name="uq_stock_intraday_ticker_time"),
+    )
+
+    id         = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    ticker     = Column(String, index=True, nullable=False)
+    date       = Column(String, index=True, nullable=False)   # YYYY-MM-DD
+    time       = Column(String, nullable=False)               # HH:MM:SS
+    timestamp  = Column(Integer, index=True, nullable=False)  # UNIX Epoch seconds
+    price      = Column(Float, nullable=False)
+    change     = Column(Float, default=0.0)
+    change_pct = Column(Float, default=0.0)
+    volume     = Column(Integer, default=0)
 

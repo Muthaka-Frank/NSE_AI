@@ -1,11 +1,13 @@
 /**
  * NSE AI Platform — Chart Module
- * TradingView Lightweight Charts candlestick renderer.
+ * TradingView Lightweight Charts candlestick & intraday live area renderer.
  */
 
 let chartInstance = null;
 let candleSeries  = null;
+let areaSeries    = null;
 let volumeSeries  = null;
+let currentChartMode = 'candles'; // 'candles' | 'area'
 
 function initChart(containerId = 'main-chart') {
   const container = document.getElementById(containerId);
@@ -47,6 +49,13 @@ function initChart(containerId = 'main-chart') {
     wickDownColor:  '#cc3d57',
   });
 
+  areaSeries = chartInstance.addAreaSeries({
+    topColor:       'rgba(0, 229, 160, 0.35)',
+    bottomColor:    'rgba(0, 229, 160, 0.02)',
+    lineColor:      '#00e5a0',
+    lineWidth:      2,
+  });
+
   volumeSeries = chartInstance.addHistogramSeries({
     color:       '#243650',
     priceFormat: { type: 'volume' },
@@ -68,6 +77,9 @@ function initChart(containerId = 'main-chart') {
 function loadChartData(history) {
   if (!candleSeries || !history || history.length === 0) return;
 
+  // Switch to candlestick mode
+  if (areaSeries) areaSeries.setData([]);
+  
   const candles = history.map(d => ({
     time:  d.date,
     open:  d.open,
@@ -87,10 +99,52 @@ function loadChartData(history) {
   chartInstance.timeScale().fitContent();
 }
 
+function loadIntradayData(intradayResponse) {
+  if (!areaSeries || !intradayResponse || !intradayResponse.ticks || intradayResponse.ticks.length === 0) return;
+
+  // Switch to area mode for intraday
+  if (candleSeries) candleSeries.setData([]);
+
+  const isPositive = (intradayResponse.change >= 0);
+  areaSeries.applyOptions({
+    topColor:    isPositive ? 'rgba(0, 229, 160, 0.40)' : 'rgba(255, 77, 109, 0.40)',
+    bottomColor: isPositive ? 'rgba(0, 229, 160, 0.02)' : 'rgba(255, 77, 109, 0.02)',
+    lineColor:   isPositive ? '#00e5a0' : '#ff4d6d',
+  });
+
+  const areaData = intradayResponse.ticks.map(t => ({
+    time:  t.time,
+    value: t.price,
+  }));
+
+  const volumeData = intradayResponse.ticks.map(t => ({
+    time:  t.time,
+    value: t.volume,
+    color: isPositive ? 'rgba(0,229,160,0.3)' : 'rgba(255,77,109,0.3)',
+  }));
+
+  areaSeries.setData(areaData);
+  volumeSeries.setData(volumeData);
+  chartInstance.timeScale().fitContent();
+}
+
 async function updateChart(ticker, period) {
+  if (period === '1d') {
+    const cacheKey = `nse_intraday_${ticker}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      try { loadIntradayData(JSON.parse(cached)); } catch(e) {}
+    }
+
+    const data = await api.getIntraday(ticker);
+    if (data && data.ticks && data.ticks.length > 0) {
+      localStorage.setItem(cacheKey, JSON.stringify(data));
+      loadIntradayData(data);
+    }
+    return;
+  }
+
   const cacheKey = `nse_chart_cache_${ticker}_${period}`;
-  
-  // Try rendering cached history data first if available
   const cachedData = localStorage.getItem(cacheKey);
   if (cachedData) {
     try {

@@ -136,6 +136,91 @@ def analyse(text: str) -> SentimentResult:
     return SentimentResult("NEUTRAL", 0.50, "Mixed signals — no clear directional bias.")
 
 
+def _parse_article_age_hours(published_str: str) -> float:
+    if not published_str:
+        return 0.0
+    from email.utils import parsedate_to_datetime
+    from datetime import datetime, timezone
+    # Try RFC 2822 (standard RSS date e.g. 'Tue, 11 Aug 2026 11:34:29 +0000')
+    try:
+        dt = parsedate_to_datetime(published_str)
+        now = datetime.now(dt.tzinfo or timezone.utc)
+        return max(0.0, (now - dt).total_seconds() / 3600.0)
+    except Exception:
+        pass
+    # Try ISO formats
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            dt = datetime.strptime(published_str[:19], fmt).replace(tzinfo=timezone.utc)
+            now = datetime.now(timezone.utc)
+            return max(0.0, (now - dt).total_seconds() / 3600.0)
+        except Exception:
+            continue
+    return 0.0
+
+
+def calculate_time_decay_weight(hours_elapsed: float) -> float:
+    """
+    Exponential decay for financial news relevance:
+    < 12h:  1.00 (Breaking news)
+    12-24h: 0.85 (Same-day news)
+    24-48h: 0.60 (Yesterday)
+    48-72h: 0.35 (2-3 days ago)
+    > 72h:  0.15 (Older background news)
+    """
+    if hours_elapsed <= 12.0:
+        return 1.0
+    elif hours_elapsed <= 24.0:
+        return 0.85
+    elif hours_elapsed <= 48.0:
+        return 0.60
+    elif hours_elapsed <= 72.0:
+        return 0.35
+    else:
+        return 0.15
+
+
+def aggregate_sentiment_with_decay(articles: list[dict]) -> SentimentResult:
+    """
+    Aggregates sentiment across a list of news article dictionaries, applying
+    exponential time-decay weighting to prioritize breaking/recent news.
+    """
+    if not articles:
+        return SentimentResult("NEUTRAL", 0.50, "No data.")
+
+    weighted_pos = 0.0
+    weighted_neg = 0.0
+    total_weight = 0.0
+
+    for art in articles:
+        text = art.get("title", "") + " " + art.get("summary", "")
+        res = analyse(text)
+
+        age_hours = _parse_article_age_hours(art.get("published", ""))
+        weight = calculate_time_decay_weight(age_hours)
+
+        if res.label == "POSITIVE":
+            weighted_pos += res.score * weight
+        elif res.label == "NEGATIVE":
+            weighted_neg += res.score * weight
+        total_weight += weight
+
+    if total_weight == 0.0 or (weighted_pos == 0.0 and weighted_neg == 0.0):
+        return SentimentResult("NEUTRAL", 0.50, f"Based on {len(articles)} neutral articles.")
+
+    pos_score = weighted_pos / total_weight
+    neg_score = weighted_neg / total_weight
+
+    if pos_score > neg_score and (pos_score - neg_score) >= 0.08:
+        conf = round(min(0.97, max(0.55, 0.50 + pos_score * 0.45)), 3)
+        return SentimentResult("POSITIVE", conf, f"Time-weighted consensus from {len(articles)} articles (breaking news prioritized).")
+    elif neg_score > pos_score and (neg_score - pos_score) >= 0.08:
+        conf = round(min(0.97, max(0.55, 0.50 + neg_score * 0.45)), 3)
+        return SentimentResult("NEGATIVE", conf, f"Time-weighted consensus from {len(articles)} articles (breaking news prioritized).")
+    
+    return SentimentResult("NEUTRAL", 0.50, f"Balanced sentiment across {len(articles)} articles.")
+
+
 def aggregate_sentiment(results: list) -> SentimentResult:
     if not results:
         return SentimentResult("NEUTRAL", 0.50, "No data.")

@@ -8,13 +8,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from jose import JWTError, jwt
-from dotenv import load_dotenv
+from core.config import settings
 
-load_dotenv()
-
-JWT_SECRET    = os.getenv("JWT_SECRET", "nse-ai-super-secret-change-in-production")
-JWT_ALGORITHM = "HS256"
-JWT_EXPIRE_DAYS = 7
+JWT_SECRET    = settings.JWT_SECRET_KEY
+JWT_ALGORITHM = settings.JWT_ALGORITHM
+JWT_EXPIRE_DAYS = settings.ACCESS_TOKEN_EXPIRE_MINUTES // (60 * 24)
 
 
 # ── Passwords ─────────────────────────────────────────────────────────────────

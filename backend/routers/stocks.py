@@ -70,6 +70,90 @@ def stock_history(ticker: str, period: str = "6mo"):
     return {"ticker": ticker.upper(), "period": period, "data": data}
 
 
+@router.get("/{ticker}/intraday")
+def stock_intraday(ticker: str, date: str = None):
+    """
+    Return today's (or latest session's) intraday price snapshots recorded during market hours.
+    Used for the 1D Live Intraday Price Chart.
+    """
+    ticker = ticker.upper()
+    info = get_stock_info(ticker)
+    if not info:
+        raise HTTPException(status_code=404, detail=f"Ticker '{ticker}' not found.")
+
+    from auth.database import SessionLocal
+    from auth.models import StockIntraday
+    from data.nse_scraper import is_market_open
+    from datetime import datetime, timezone
+    import pytz
+    from core.config import settings
+
+    nairobi_tz = pytz.timezone(settings.TIMEZONE_NAME)
+    today_str = date or datetime.now(nairobi_tz).strftime("%Y-%m-%d")
+
+    db = SessionLocal()
+    try:
+        # Fetch today's intraday ticks
+        ticks = db.query(StockIntraday).filter(
+            StockIntraday.ticker == ticker,
+            StockIntraday.date == today_str
+        ).order_by(StockIntraday.timestamp.asc()).all()
+
+        target_date = today_str
+        if not ticks:
+            # If no ticks for today yet, find latest recorded session
+            latest_tick = db.query(StockIntraday).filter(
+                StockIntraday.ticker == ticker
+            ).order_by(StockIntraday.date.desc(), StockIntraday.timestamp.desc()).first()
+
+            if latest_tick:
+                target_date = latest_tick.date
+                ticks = db.query(StockIntraday).filter(
+                    StockIntraday.ticker == ticker,
+                    StockIntraday.date == target_date
+                ).order_by(StockIntraday.timestamp.asc()).all()
+
+        prev_close = info.get("price", 0.0) - info.get("change", 0.0)
+        if prev_close <= 0:
+            prev_close = info.get("price", 0.0)
+
+        formatted_ticks = []
+        if ticks:
+            for t in ticks:
+                formatted_ticks.append({
+                    "time": t.timestamp,
+                    "time_str": t.time[:5],
+                    "price": t.price,
+                    "change": round(t.price - prev_close, 2),
+                    "change_pct": round(((t.price - prev_close) / prev_close) * 100, 2) if prev_close > 0 else 0.0,
+                    "volume": t.volume
+                })
+        else:
+            now_ts = int(datetime.now(timezone.utc).timestamp())
+            cur_p = info.get("price", 0.0)
+            chg = info.get("change", 0.0)
+            chg_pct = info.get("change_pct", 0.0)
+            vol = info.get("volume", 0)
+            formatted_ticks = [
+                {"time": now_ts - 1800, "time_str": "09:00", "price": prev_close, "change": 0.0, "change_pct": 0.0, "volume": int(vol * 0.1)},
+                {"time": now_ts, "time_str": datetime.now(nairobi_tz).strftime("%H:%M"), "price": cur_p, "change": chg, "change_pct": chg_pct, "volume": vol}
+            ]
+
+        return {
+            "ticker": ticker,
+            "date": target_date,
+            "is_market_open": is_market_open(),
+            "prev_close": round(prev_close, 2),
+            "current_price": info["price"],
+            "change": info["change"],
+            "change_pct": info["change_pct"],
+            "ticks": formatted_ticks,
+            "count": len(formatted_ticks)
+        }
+    finally:
+        db.close()
+
+
 @router.get("/{ticker}/prediction")
 def stock_prediction(ticker: str):
     """
@@ -80,20 +164,13 @@ def stock_prediction(ticker: str):
     if not info:
         raise HTTPException(status_code=404, detail=f"Ticker '{ticker}' not found.")
         
-    # Aggregate sentiment from related news
+    # Aggregate sentiment from related news with exponential time-decay
     news = get_news_feed()
     related = [a for a in news if ticker.upper() in a.get("related_tickers", [])]
     sentiment = None
     if related:
-        texts      = [a["title"] + " " + a["summary"] for a in related[:5]]
-        sentiments = [analyse(t) for t in texts]
-        pos = sum(1 for s in sentiments if s.label == "POSITIVE")
-        neg = sum(1 for s in sentiments if s.label == "NEGATIVE")
-        avg = sum(s.score for s in sentiments) / len(sentiments)
-        from ml.sentiment import SentimentResult
-        label     = "POSITIVE" if pos > neg else ("NEGATIVE" if neg > pos else "NEUTRAL")
-        sentiment = SentimentResult(label=label, score=round(avg, 3),
-                                    reasoning=f"Based on {len(related)} news articles")
+        from ml.sentiment import aggregate_sentiment_with_decay
+        sentiment = aggregate_sentiment_with_decay(related[:5])
 
     history = get_historical_data(ticker.upper(), "3mo")
     result  = predict(ticker.upper(), history, sentiment)

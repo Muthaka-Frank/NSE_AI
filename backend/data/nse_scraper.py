@@ -26,9 +26,11 @@ _HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
+from core.config import settings
+
 # In-memory cache
 _PRICE_CACHE: dict = {}
-_CACHE_TTL = 600  # 10 minutes
+_CACHE_TTL = settings.SCRAPER_CACHE_TTL
 
 # Ticker mappings between backend tickers and Kwayisi tickers
 _TICKER_MAP = {
@@ -38,11 +40,11 @@ _TICKER_MAP = {
 
 # Cache for the whole scraped table to avoid fetching multiple times in parallel or quick succession
 _LAST_GLOBAL_FETCH = 0.0
-_GLOBAL_CACHE_TTL = 600  # 10 minutes
+_GLOBAL_CACHE_TTL = settings.SCRAPER_CACHE_TTL
 
-_KWAYISI_URL = "https://afx.kwayisi.org/nse/"
+_KWAYISI_URL = settings.KWAYISI_URL
 _KWAYISI_DOWN_UNTIL = 0.0
-_NAIROBI_TZ = pytz.timezone("Africa/Nairobi")
+_NAIROBI_TZ = pytz.timezone(settings.TIMEZONE_NAME)
 
 
 def _cached(ticker: str) -> Optional[dict]:
@@ -68,21 +70,30 @@ def _store(ticker: str, price: float, change: float, change_pct: float,
 
 def is_market_open() -> bool:
     """
-    Checks if the Nairobi Securities Exchange (NSE) is open.
-    Open hours: Weekdays (Mon-Fri) from 8:55 AM to 3:05 PM EAT.
+    Checks if active live trading is currently happening on the NSE.
+    Trading hours: Weekdays (Mon-Fri) 8:55 AM to 3:05 PM EAT.
     """
-    import sys
-    # Always allow scraping during unit tests
-    if "unittest" in sys.modules or "pytest" in sys.modules:
-        return True
-
     now = datetime.now(_NAIROBI_TZ)
     if now.weekday() >= 5:
         return False
-    
-    start_time = now.replace(hour=8, minute=55, second=0, microsecond=0)
-    end_time = now.replace(hour=15, minute=5, second=0, microsecond=0)
+    start_time = now.replace(hour=settings.MARKET_OPEN_HOUR, minute=settings.MARKET_OPEN_MINUTE, second=0, microsecond=0)
+    end_time = now.replace(hour=settings.MARKET_CLOSE_HOUR, minute=settings.MARKET_CLOSE_MINUTE, second=0, microsecond=0)
     return start_time <= now <= end_time
+
+
+def should_allow_scrape() -> bool:
+    """
+    Allows fetching real quotes on weekdays from 8:55 AM EAT onwards (including post-market closing quotes).
+    On weekends (Sat-Sun), network scraping is disabled to save bandwidth.
+    """
+    import sys
+    if "unittest" in sys.modules or "pytest" in sys.modules:
+        return True
+    now = datetime.now(_NAIROBI_TZ)
+    if now.weekday() >= 5:
+        return False
+    start_time = now.replace(hour=settings.MARKET_OPEN_HOUR, minute=settings.MARKET_OPEN_MINUTE, second=0, microsecond=0)
+    return now >= start_time
 
 
 def _load_prices_from_db():
@@ -232,8 +243,8 @@ def get_price(ticker: str) -> Optional[dict]:
     if cached:
         return cached
 
-    # Check if market is open. If not open, serve cached/last-known prices without network scraping.
-    if not is_market_open():
+    # Check if network scraping is allowed (weekdays 8:55 AM - 11:59 PM EAT)
+    if not should_allow_scrape():
         if not _PRICE_CACHE:
             _load_prices_from_db()
         return _cached(ticker)
@@ -271,8 +282,8 @@ def get_all_prices() -> dict[str, dict]:
         if results:
             return results
 
-    # Check if market is open. If not open, serve cached/last-known prices without network scraping.
-    if not is_market_open():
+    # Check if network scraping is allowed (weekdays 8:55 AM - 11:59 PM EAT)
+    if not should_allow_scrape():
         if not _PRICE_CACHE:
             _load_prices_from_db()
         

@@ -100,5 +100,65 @@ class TestScraperAndSignals(unittest.TestCase):
         self.assertGreater(len(data), 0)
         self.assertIn("close", data[0])
 
+    def test_illiquidity_guardrail(self):
+        """Verify that stocks with frequent zero volume are suppressed to protect against illiquidity traps."""
+        illiquid_history = [
+            {"date": f"2026-05-{i:02d}", "open": 10.0, "high": 10.5, "low": 9.5, "close": 10.0 + (i * 0.1), "volume": 0 if i > 3 else 200}
+            for i in range(1, 15)
+        ]
+        pred = predict("ILLQ", illiquid_history)
+        self.assertEqual(pred.direction, "NO_SIGNAL")
+        self.assertTrue(any("Liquidity Guardrail" in r for r in pred.reasoning))
+
+    def test_sentiment_time_decay(self):
+        """Verify that recent breaking news has more weight than older news."""
+        from ml.sentiment import aggregate_sentiment_with_decay
+        from datetime import datetime, timedelta, timezone
+
+        now = datetime.now(timezone.utc)
+        breaking_date = (now - timedelta(hours=2)).strftime("%a, %d %b %Y %H:%M:%S +0000")
+        old_date = (now - timedelta(days=5)).strftime("%a, %d %b %Y %H:%M:%S +0000")
+
+        # Breaking POSITIVE news vs Old NEGATIVE news
+        articles = [
+            {"title": "Company reports surge in profits and record dividend", "summary": "Outstanding growth", "published": breaking_date},
+            {"title": "Company warned of loss and decline", "summary": "Old issues", "published": old_date},
+        ]
+        res = aggregate_sentiment_with_decay(articles)
+        self.assertEqual(res.label, "POSITIVE")
+
+    def test_multi_timeframe_alignment(self):
+        """Verify that multi-timeframe checks and pivot points are computed in reasons."""
+        mock_history = [
+            {"date": f"2026-05-{i:02d}", "open": 20.0, "high": 21.0, "low": 19.5, "close": 20.0 + (i * 0.2), "volume": 500000}
+            for i in range(1, 40)
+        ]
+        pred = predict("SCOM", mock_history)
+        self.assertTrue(any("Pivot" in r for r in pred.reasoning))
+
+    def test_batch_historical_data(self):
+        """Verify that get_batch_historical_data returns dictionary mapping of requested tickers."""
+        from data.fetcher import get_batch_historical_data
+        tickers = ["SCOM", "EQTY", "KCB"]
+        histories = get_batch_historical_data(tickers, "1mo")
+        self.assertIsInstance(histories, dict)
+        for t in tickers:
+            self.assertIn(t, histories)
+            self.assertIsInstance(histories[t], list)
+
+    def test_recommendations_caching(self):
+        """Verify that get_recommendations utilizes in-memory cache and returns consistent structure."""
+        from routers.recommendations import get_recommendations, clear_recommendations_cache
+        clear_recommendations_cache()
+        recs1 = get_recommendations()
+        self.assertIn("recommendations", recs1)
+        self.assertIn("buys", recs1)
+        self.assertIn("sells", recs1)
+        
+        # Second call should hit in-memory cache instantly
+        recs2 = get_recommendations()
+        self.assertEqual(recs1["count"], recs2["count"])
+
+
 if __name__ == "__main__":
     unittest.main()

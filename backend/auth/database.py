@@ -25,6 +25,8 @@ if DATABASE_URL.startswith("sqlite"):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.execute("PRAGMA cache_size=-64000")  # 64MB cache
+        cursor.execute("PRAGMA temp_store=MEMORY")
         cursor.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -44,6 +46,18 @@ def get_db():
 
 
 def init_db():
-    """Create all tables. Called once on startup."""
-    from auth.models import User, StockHistory, WatchlistItem, PortfolioItem  # noqa: F401
+    """Create all tables and composite unique indexes. Called once on startup."""
+    from auth.models import User, StockHistory, WatchlistItem, PortfolioItem, StockIntraday  # noqa: F401
     Base.metadata.create_all(bind=engine)
+
+    # Ensure composite unique indexes exist on SQLite database
+    from sqlalchemy import text
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_stock_history_ticker_date ON stock_history (ticker, date);"))
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_watchlist_user_ticker ON watchlist (user_id, ticker);"))
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_stock_intraday_ticker_time ON stock_intraday (ticker, date, time);"))
+            conn.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Notice on unique index creation: %s", e)
