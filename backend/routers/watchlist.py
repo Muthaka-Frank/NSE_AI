@@ -72,27 +72,44 @@ def remove_from_watchlist(ticker: str, current_user: User = Depends(get_current_
     db.commit()
     return {"message": f"{ticker} removed from watchlist"}
 
+from core.fees import calculate_trade_pnl, get_fee_schedule, calculate_buy_costs
+
+@router.get("/fees/schedule")
+def get_fees_schedule():
+    """Return the statutory fee schedule for Kenya CMA / NSE / CDSC transactions."""
+    return get_fee_schedule()
+
+@router.get("/fees/calculate")
+def calculate_fees(price: float, quantity: int):
+    """Calculate purchase consideration, statutory fees, total outlay, and breakeven price."""
+    if price <= 0 or quantity <= 0:
+        raise HTTPException(status_code=400, detail="Price and quantity must be greater than zero")
+    return calculate_buy_costs(price, quantity)
+
 @router.get("/portfolio")
 def get_portfolio(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Fetch user's portfolio holding values with dynamic, real-time valuation and profit/loss calculation."""
+    """Fetch user's portfolio holding values with dynamic valuation, statutory fees, breakeven, and net P&L."""
     items = db.query(PortfolioItem).filter(PortfolioItem.user_id == current_user.id).all()
     results = []
     
     total_cost = 0.0
     total_value = 0.0
+    total_outlay = 0.0
+    total_net_value = 0.0
+    total_statutory_fees = 0.0
     
     for item in items:
         ticker = item.ticker.upper()
         live_data = get_price(ticker)
         current_price = live_data.get("price") if live_data else item.buy_price
         
-        cost = item.buy_price * item.quantity
-        value = current_price * item.quantity
-        profit_loss = value - cost
-        profit_loss_pct = (profit_loss / cost * 100) if cost > 0 else 0.0
+        pnl = calculate_trade_pnl(item.buy_price, current_price, item.quantity)
         
-        total_cost += cost
-        total_value += value
+        total_cost += pnl["gross_cost"]
+        total_value += pnl["gross_market_value"]
+        total_outlay += pnl["total_outlay"]
+        total_net_value += pnl["net_market_value"]
+        total_statutory_fees += pnl["total_statutory_fees"]
         
         results.append({
             "id": item.id,
@@ -100,15 +117,31 @@ def get_portfolio(current_user: User = Depends(get_current_user), db: Session = 
             "quantity": item.quantity,
             "buy_price": item.buy_price,
             "current_price": current_price,
-            "total_cost": round(cost, 2),
-            "market_value": round(value, 2),
-            "profit_loss": round(profit_loss, 2),
-            "profit_loss_pct": round(profit_loss_pct, 2),
+            # Gross fields (backwards-compatible)
+            "total_cost": pnl["gross_cost"],
+            "market_value": pnl["gross_market_value"],
+            "profit_loss": pnl["gross_profit_loss"],
+            "profit_loss_pct": pnl["gross_profit_loss_pct"],
+            "gross_profit_loss": pnl["gross_profit_loss"],
+            "gross_profit_loss_pct": pnl["gross_profit_loss_pct"],
+            # Statutory fee & Net fields
+            "total_outlay": pnl["total_outlay"],
+            "net_market_value": pnl["net_market_value"],
+            "buy_fees": pnl["buy_fees"],
+            "estimated_exit_fees": pnl["estimated_exit_fees"],
+            "total_statutory_fees": pnl["total_statutory_fees"],
+            "net_profit_loss": pnl["net_profit_loss"],
+            "net_profit_loss_pct": pnl["net_profit_loss_pct"],
+            "breakeven_price": pnl["breakeven_price"],
+            "breakeven_hurdle_pct": pnl["breakeven_hurdle_pct"],
             "added_at": item.created_at
         })
         
     portfolio_profit_loss = total_value - total_cost
     portfolio_profit_loss_pct = (portfolio_profit_loss / total_cost * 100) if total_cost > 0 else 0.0
+    
+    portfolio_net_profit_loss = total_net_value - total_outlay
+    portfolio_net_profit_loss_pct = (portfolio_net_profit_loss / total_outlay * 100) if total_outlay > 0 else 0.0
     
     return {
         "holdings": results,
@@ -116,7 +149,13 @@ def get_portfolio(current_user: User = Depends(get_current_user), db: Session = 
             "total_cost": round(total_cost, 2),
             "total_value": round(total_value, 2),
             "portfolio_profit_loss": round(portfolio_profit_loss, 2),
-            "portfolio_profit_loss_pct": round(portfolio_profit_loss_pct, 2)
+            "portfolio_profit_loss_pct": round(portfolio_profit_loss_pct, 2),
+            "total_outlay": round(total_outlay, 2),
+            "total_net_value": round(total_net_value, 2),
+            "portfolio_net_profit_loss": round(portfolio_net_profit_loss, 2),
+            "portfolio_net_profit_loss_pct": round(portfolio_net_profit_loss_pct, 2),
+            "total_statutory_fees": round(total_statutory_fees, 2),
+            "fee_schedule": get_fee_schedule()
         }
     }
 

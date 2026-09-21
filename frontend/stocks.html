@@ -110,11 +110,11 @@
             <tr>
               <th>Ticker</th><th>Company</th><th>Sector</th>
               <th>Price (KES)</th><th>Open</th><th>High</th><th>Low</th>
-              <th>Change</th><th>Volume</th><th>AI Signal</th>
+              <th>Change</th><th>Volume</th><th>Liquidity</th><th>AI Signal</th>
             </tr>
           </thead>
           <tbody id="stocks-tbody">
-            <tr><td colspan="10" class="table-loading">Loading live data…</td></tr>
+            <tr><td colspan="11" class="table-loading">Loading live data…</td></tr>
           </tbody>
         </table>
       </div>
@@ -179,39 +179,31 @@
           e.stopPropagation();
           btn.classList.toggle('open');
         });
-        // Close when clicking anywhere else
         document.addEventListener('click', () => btn.classList.remove('open'));
       })();
 
       // Clock
-      const tick = () => {
-        document.getElementById('nav-time').textContent =
-          new Date().toLocaleTimeString('en-KE', { timeZone:'Africa/Nairobi', hour12:false }) + ' EAT';
-      };
-      tick(); setInterval(tick, 1000);
+      setInterval(() => {
+        const el = document.getElementById('nav-time');
+        if (el) el.textContent = new Date().toLocaleTimeString('en-GB', { timeZone:'Africa/Nairobi' }) + ' EAT';
+      }, 1000);
 
-      // Load stocks and refresh every 30 seconds
-      const refreshStockData = async () => {
-        const data = await api.getStocks();
-        allStocks = data?.stocks || MOCK.stocks;
-        renderTicker(allStocks);
-        applyFilters();
-      };
-      await refreshStockData();
-      setInterval(refreshStockData, 30_000);
+      // Search & Filters
+      document.getElementById('stock-search').addEventListener('input', e => {
+        applyFilters(e.target.value.toLowerCase(), activeSector);
+      });
 
-      // Sector filters
       document.getElementById('sector-filters').addEventListener('click', e => {
         const btn = e.target.closest('.sector-btn');
         if (!btn) return;
         document.querySelectorAll('.sector-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         activeSector = btn.dataset.sector;
-        applyFilters();
+        applyFilters(document.getElementById('stock-search').value.toLowerCase(), activeSector);
       });
 
-      // Search
-      document.getElementById('stock-search').addEventListener('input', applyFilters);
+      // Load data
+      await loadStocks();
 
       // Modal close
       document.getElementById('stock-modal').addEventListener('click', e => {
@@ -220,22 +212,36 @@
       document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
     });
 
-    function applyFilters() {
-      const q = document.getElementById('stock-search').value.toLowerCase();
+    async function loadStocks() {
+      const data = await api.getStocks();
+      allStocks = data?.stocks || MOCK.stocks;
+      renderTickerTape(allStocks);
+      applyFilters('', 'ALL');
+    }
+
+    function applyFilters(query, sector) {
       let filtered = allStocks;
-      if (activeSector !== 'ALL') filtered = filtered.filter(s => s.sector === activeSector);
-      if (q) filtered = filtered.filter(s => s.ticker.toLowerCase().includes(q) || s.name.toLowerCase().includes(q));
+      if (sector !== 'ALL') {
+        filtered = filtered.filter(s => s.sector === sector);
+      }
+      if (query) {
+        filtered = filtered.filter(s =>
+          s.ticker.toLowerCase().includes(query) ||
+          s.name.toLowerCase().includes(query) ||
+          s.sector.toLowerCase().includes(query)
+        );
+      }
       renderTable(filtered);
     }
 
-    function renderTicker(stocks) {
+    function renderTickerTape(stocks) {
       const tape = document.getElementById('ticker-tape');
-      const doubled = [...stocks, ...stocks];
-      tape.innerHTML = doubled.map(s => `
-        <div class="ticker-item">
-          <span class="ticker-symbol">${s.ticker}</span>
-          <span class="ticker-price">KES ${s.price.toFixed(2)}</span>
-          <span class="ticker-change ${s.change_pct >= 0 ? 'up' : 'down'}">
+      if (!stocks.length) return;
+      tape.innerHTML = stocks.map(s => `
+        <div class="tape-item" onclick="openModal('${s.ticker}')">
+          <span class="tape-ticker">${s.ticker}</span>
+          <span class="tape-price">KES ${s.price.toFixed(2)}</span>
+          <span class="tape-change ${s.change_pct >= 0 ? 'change-up' : 'change-down'}">
             ${s.change_pct >= 0 ? '▲' : '▼'} ${Math.abs(s.change_pct).toFixed(2)}%
           </span>
         </div>
@@ -245,7 +251,7 @@
     function renderTable(stocks) {
       const tbody = document.getElementById('stocks-tbody');
       if (!stocks.length) {
-        tbody.innerHTML = '<tr><td colspan="10" class="table-loading">No stocks match your filter.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="table-loading">No stocks match your filter.</td></tr>';
         return;
       }
       tbody.innerHTML = stocks.map(s => {
@@ -261,23 +267,38 @@
             <td class="table-price" style="color:var(--red)">${s.low?.toFixed(2) ?? '-'}</td>
             <td class="${up ? 'change-up' : 'change-down'}">${up ? '▲' : '▼'} ${Math.abs(s.change_pct).toFixed(2)}%</td>
             <td class="table-volume">${fmtVol(s.volume)}</td>
+            <td id="liq-${s.ticker}"><span class="signal-pill NO_SIGNAL" style="font-size:11px; padding:2px 8px;">…</span></td>
             <td><span class="signal-pill NO_SIGNAL" id="sig-${s.ticker}">Loading…</span></td>
           </tr>
         `;
       }).join('');
 
-      // Fetch signals async (non-blocking)
+      // Fetch signals and liquidity async (non-blocking)
       stocks.forEach(s => fetchSignalBadge(s.ticker));
     }
 
     async function fetchSignalBadge(ticker) {
       const el = document.getElementById(`sig-${ticker}`);
-      if (!el) return;
+      const liqEl = document.getElementById(`liq-${ticker}`);
+      if (!el && !liqEl) return;
       const data = await api.getPrediction(ticker);
-      if (!data) { el.textContent = '—'; return; }
-      el.className = `signal-pill ${data.direction}`;
-      el.textContent = data.direction === 'NO_SIGNAL' ? '—' :
-        `${data.direction} ${data.confidence_pct}`;
+      if (!data) { 
+        if (el) el.textContent = '—';
+        if (liqEl) liqEl.textContent = '—';
+        return; 
+      }
+      if (el) {
+        el.className = `signal-pill ${data.direction}`;
+        el.textContent = data.direction === 'NO_SIGNAL' ? '—' :
+          `${data.direction} ${data.confidence_pct}`;
+      }
+      if (liqEl && data.liquidity_rating) {
+        const r = data.liquidity_rating;
+        const color = r === 'HIGH' ? 'var(--accent)' : r === 'MODERATE' ? '#ffd700' : 'var(--red)';
+        const label = r === 'HIGH' ? '🟢 High' : r === 'MODERATE' ? '🟡 Mod' : '🔴 Illiquid';
+        const tip = `Est. Bid-Ask Spread: ${data.spread_pct !== null ? data.spread_pct.toFixed(1) + '%' : '—'} | Turnover Velocity: ${data.turnover_velocity_pct !== null ? data.turnover_velocity_pct.toFixed(2) + '%/mo' : '—'}`;
+        liqEl.innerHTML = `<span title="${tip}" style="display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:12px; background:rgba(255,255,255,0.06); color:${color}; border:1px solid ${color}40; cursor:help;">${label}</span>`;
+      }
     }
 
     async function openModal(ticker) {
@@ -306,6 +327,33 @@
           <div class="modal-stat"><div class="modal-stat-label">Volume</div><div class="modal-stat-val">${fmtVol(stock.volume)}</div></div>
         </div>
         <div id="modal-chart" class="modal-chart"></div>
+        <div id="modal-liquidity-panel" style="margin-top:14px; padding:12px; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:8px;">
+          <div style="font-size:12px; color:var(--text-muted); display:flex; justify-content:space-between; align-items:center;">
+            <span>💧 <b>Liquidity & Market Friction Profile</b></span>
+            <span id="liq-modal-badge" style="font-size:11px; font-weight:700;">Loading…</span>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-top:8px;">
+            <div style="background:rgba(0,0,0,0.2); padding:8px; border-radius:6px;">
+              <div style="font-size:11px; color:var(--text-muted);">Est. Bid-Ask Spread</div>
+              <div id="liq-modal-spread" style="font-size:14px; font-weight:700; font-family:var(--font-mono); color:var(--text-primary);">—</div>
+            </div>
+            <div style="background:rgba(0,0,0,0.2); padding:8px; border-radius:6px;">
+              <div style="font-size:11px; color:var(--text-muted);">Monthly Turnover</div>
+              <div id="liq-modal-turnover" style="font-size:14px; font-weight:700; font-family:var(--font-mono); color:var(--text-primary);">—</div>
+            </div>
+            <div style="background:rgba(0,0,0,0.2); padding:8px; border-radius:6px;">
+              <div style="font-size:11px; color:var(--text-muted);">Free-Float Ratio</div>
+              <div id="liq-modal-float" style="font-size:14px; font-weight:700; font-family:var(--font-mono); color:var(--text-primary);">—</div>
+            </div>
+            <div style="background:rgba(0,0,0,0.2); padding:8px; border-radius:6px;">
+              <div style="font-size:11px; color:var(--text-muted);">Slippage Buffer</div>
+              <div id="liq-modal-premium" style="font-size:14px; font-weight:700; font-family:var(--font-mono); color:var(--text-primary);">—</div>
+            </div>
+          </div>
+          <div id="liq-modal-summary" style="font-size:12px; color:var(--text-secondary); margin-top:8px; line-height:1.4;">
+            Evaluating liquidity friction…
+          </div>
+        </div>
         <div class="modal-signal" id="modal-signal"><div style="color:var(--text-muted);font-size:13px">Analysing AI signal…</div></div>
       `;
 
@@ -323,6 +371,26 @@
       const histData = await api.getHistory(ticker, '3mo') || { data: MOCK.generateHistory(ticker, 90) };
       cs.setData(histData.data.map(d => ({ time:d.date, open:d.open, high:d.high, low:d.low, close:d.close })));
       chart.timeScale().fitContent();
+
+      // Load stock detail & liquidity
+      api.getStock(ticker).then(detail => {
+        if (detail && detail.liquidity) {
+          const l = detail.liquidity;
+          const badgeEl = document.getElementById('liq-modal-badge');
+          const spreadEl = document.getElementById('liq-modal-spread');
+          const turnEl = document.getElementById('liq-modal-turnover');
+          const floatEl = document.getElementById('liq-modal-float');
+          const premEl = document.getElementById('liq-modal-premium');
+          const sumEl = document.getElementById('liq-modal-summary');
+
+          if (badgeEl) badgeEl.innerHTML = `<span style="color:${l.rating === 'HIGH' ? 'var(--accent)' : l.rating === 'MODERATE' ? '#ffd700' : 'var(--red)'};">${l.badge}</span>`;
+          if (spreadEl) spreadEl.textContent = l.spread_pct !== null ? `${l.spread_pct.toFixed(2)}%` : '—';
+          if (turnEl) turnEl.textContent = l.turnover_velocity_monthly_pct !== null ? `${l.turnover_velocity_monthly_pct.toFixed(2)}%/mo` : '—';
+          if (floatEl) floatEl.textContent = l.free_float_pct !== null ? `${l.free_float_pct.toFixed(1)}%` : '—';
+          if (premEl) premEl.textContent = l.risk_premium_pct !== null ? `±${l.risk_premium_pct.toFixed(2)}%` : '—';
+          if (sumEl) sumEl.textContent = l.summary || '';
+        }
+      });
 
       // Load AI signal
       const pred = await api.getPrediction(ticker);

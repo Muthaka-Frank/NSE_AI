@@ -51,11 +51,33 @@ async def stream_stocks():
 
 @router.get("/{ticker}")
 def stock_detail(ticker: str):
-    """Return detailed info for a single stock."""
+    """Return detailed info for a single stock, including liquidity analysis."""
     info = get_stock_info(ticker.upper())
     if not info:
         raise HTTPException(status_code=404, detail=f"Ticker '{ticker}' not found.")
-    return info
+    
+    # Compute liquidity profile
+    info_copy = dict(info)
+    try:
+        from ml.liquidity import analyze_liquidity
+        history = get_historical_data(ticker.upper(), "3mo")
+        liq = analyze_liquidity(ticker.upper(), history)
+        info_copy["liquidity"] = {
+            "rating": liq.liquidity_rating,
+            "badge": liq.rating_badge,
+            "spread_pct": liq.spread_pct,
+            "turnover_velocity_monthly_pct": liq.turnover_velocity_monthly_pct,
+            "turnover_velocity_annual_pct": liq.turnover_velocity_annual_pct,
+            "free_float_velocity_monthly_pct": liq.free_float_velocity_monthly_pct,
+            "shares_outstanding": liq.shares_outstanding,
+            "free_float_pct": liq.free_float_pct,
+            "risk_premium_pct": liq.risk_premium_pct,
+            "summary": liq.summary,
+        }
+    except Exception as e:
+        info_copy["liquidity"] = None
+
+    return info_copy
 
 
 @router.get("/{ticker}/history")
@@ -183,6 +205,10 @@ def stock_prediction(ticker: str):
         "price_target":    result.price_target,
         "risk_level":      result.risk_level,
         "timeframe":       result.timeframe,
+        "spread_pct":      result.spread_pct,
+        "turnover_velocity_pct": result.turnover_velocity_pct,
+        "liquidity_rating": result.liquidity_rating,
+        "liquidity_premium_pct": result.liquidity_premium_pct,
         "reasoning":       result.reasoning,
         "current_price":   info["price"],
         "disclaimer":      "AI signals are informational only. Not financial advice.",

@@ -293,6 +293,8 @@ def _fetch_single_stock(ticker: str, meta: dict) -> Optional[dict]:
             "ticker": ticker, "name": meta["name"], "sector": meta["sector"],
             "open": open_val, "high": high_val, "low": low_val,
             "currency": "KES",
+            "shares_outstanding": meta.get("shares_outstanding", 500_000_000),
+            "free_float_pct": meta.get("free_float_pct", 35.0),
             "timestamp": datetime.now(NAIROBI_TZ).isoformat(),
             **{k: scraped[k] for k in ("price", "change", "change_pct", "volume", "data_source")},
         }
@@ -424,6 +426,8 @@ def _fallback_stock(ticker: str, meta: dict) -> dict:
         "volume": rng.randint(100_000, 5_000_000),
         "change": change, "change_pct": change_pct,
         "currency": "KES",
+        "shares_outstanding": meta.get("shares_outstanding", 500_000_000),
+        "free_float_pct": meta.get("free_float_pct", 35.0),
         "data_source": "estimated",
         "data_as_of":  None,
         "timestamp":   datetime.now(NAIROBI_TZ).isoformat(),

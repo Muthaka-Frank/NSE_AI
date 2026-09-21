@@ -3,157 +3,209 @@
         "name": "Safaricom PLC",
         "sector": "Telecommunications",
         "yahoo": "SCOM.NR",
-        "base_price": 30.9
+        "base_price": 30.9,
+        "shares_outstanding": 40065428000,
+        "free_float_pct": 25.0
     },
     "EQTY": {
         "name": "Equity Group Holdings",
         "sector": "Banking",
         "yahoo": "EQTY.NR",
-        "base_price": 72.0
+        "base_price": 72.0,
+        "shares_outstanding": 3773674802,
+        "free_float_pct": 65.0
     },
     "KCB": {
         "name": "KCB Group PLC",
         "sector": "Banking",
         "yahoo": "KCB.NR",
-        "base_price": 67.5
+        "base_price": 67.5,
+        "shares_outstanding": 3213462815,
+        "free_float_pct": 75.0
     },
     "COOP": {
         "name": "Co-operative Bank",
         "sector": "Banking",
         "yahoo": "COOP.NR",
-        "base_price": 31.85
+        "base_price": 31.85,
+        "shares_outstanding": 5867175690,
+        "free_float_pct": 30.0
     },
     "EABL": {
         "name": "East African Breweries",
         "sector": "Consumer Staples",
         "yahoo": "EABL.NR",
-        "base_price": 248.25
+        "base_price": 248.25,
+        "shares_outstanding": 790774356,
+        "free_float_pct": 35.0
     },
     "BAT": {
         "name": "BAT Kenya",
         "sector": "Consumer Staples",
         "yahoo": "BAT.NR",
-        "base_price": 520.0
+        "base_price": 520.0,
+        "shares_outstanding": 100000000,
+        "free_float_pct": 40.0
     },
     "KPLC": {
         "name": "Kenya Power & Lighting",
         "sector": "Energy",
         "yahoo": "KPLC.NR",
-        "base_price": 15.5
+        "base_price": 15.5,
+        "shares_outstanding": 1951467045,
+        "free_float_pct": 49.0
     },
     "ABSA": {
         "name": "Absa Bank Kenya",
         "sector": "Banking",
         "yahoo": "ABSA.NR",
-        "base_price": 29.6
+        "base_price": 29.6,
+        "shares_outstanding": 5431536000,
+        "free_float_pct": 31.0
     },
     "NCBA": {
         "name": "NCBA Group PLC",
         "sector": "Banking",
         "yahoo": "NCBA.NR",
-        "base_price": 89.0
+        "base_price": 89.0,
+        "shares_outstanding": 1647516061,
+        "free_float_pct": 45.0
     },
     "STND": {
         "name": "Standard Chartered Kenya",
         "sector": "Banking",
         "yahoo": "SCBK.NR",
-        "base_price": 342.75
+        "base_price": 342.75,
+        "shares_outstanding": 387031000,
+        "free_float_pct": 26.0
     },
     "BAMB": {
         "name": "Bamburi Cement",
         "sector": "Manufacturing",
         "yahoo": "BAMB.NR",
-        "base_price": 54.0
+        "base_price": 54.0,
+        "shares_outstanding": 362959275,
+        "free_float_pct": 41.0
     },
     "KENR": {
         "name": "Kenya Re-Insurance",
         "sector": "Insurance",
         "yahoo": "KENR.NR",
-        "base_price": 3.3
+        "base_price": 3.3,
+        "shares_outstanding": 2799796200,
+        "free_float_pct": 40.0
     },
     "JUB": {
         "name": "Jubilee Holdings",
         "sector": "Insurance",
         "yahoo": "JUB.NR",
-        "base_price": 366.0
+        "base_price": 366.0,
+        "shares_outstanding": 72472950,
+        "free_float_pct": 55.0
     },
     "SBIC": {
         "name": "Stanbic Holdings",
         "sector": "Banking",
         "yahoo": "SBIC.NR",
-        "base_price": 270.0
+        "base_price": 270.0,
+        "shares_outstanding": 395321000,
+        "free_float_pct": 25.0
     },
     "HFCK": {
         "name": "HF Group",
         "sector": "Banking",
         "yahoo": "HFCK.NR",
-        "base_price": 9.78
+        "base_price": 9.78,
+        "shares_outstanding": 384614000,
+        "free_float_pct": 60.0
     },
     "IMH": {
         "name": "I&M Group PLC",
         "sector": "Banking",
         "yahoo": "IMH.NR",
-        "base_price": 21.0
+        "base_price": 21.0,
+        "shares_outstanding": 1653601296,
+        "free_float_pct": 40.0
     },
     "DTK": {
         "name": "Diamond Trust Bank Kenya",
         "sector": "Banking",
         "yahoo": "DTK.NR",
-        "base_price": 54.0
+        "base_price": 54.0,
+        "shares_outstanding": 279600000,
+        "free_float_pct": 50.0
     },
     "BRIT": {
         "name": "Britam Holdings PLC",
         "sector": "Insurance",
         "yahoo": "BRIT.NR",
-        "base_price": 5.2
+        "base_price": 5.2,
+        "shares_outstanding": 2523486816,
+        "free_float_pct": 40.0
     },
     "CIC": {
         "name": "CIC Insurance Group",
         "sector": "Insurance",
         "yahoo": "CIC.NR",
-        "base_price": 2.2
+        "base_price": 2.2,
+        "shares_outstanding": 2615577856,
+        "free_float_pct": 40.0
     },
     "KEGN": {
         "name": "KenGen",
         "sector": "Energy",
         "yahoo": "KEGN.NR",
-        "base_price": 2.3
+        "base_price": 2.3,
+        "shares_outstanding": 6594522096,
+        "free_float_pct": 30.0
     },
     "TOTL": {
         "name": "TotalEnergies Marketing",
         "sector": "Energy",
         "yahoo": "TOTL.NR",
-        "base_price": 18.0
+        "base_price": 18.0,
+        "shares_outstanding": 175049000,
+        "free_float_pct": 18.0
     },
     "CTUM": {
         "name": "Centum Investment Company",
         "sector": "Investment",
         "yahoo": "CTUM.NR",
-        "base_price": 9.0
+        "base_price": 9.0,
+        "shares_outstanding": 665441714,
+        "free_float_pct": 75.0
     },
     "UNGA": {
         "name": "Unga Group PLC",
         "sector": "Manufacturing",
         "yahoo": "UNGA.NR",
-        "base_price": 17.0
+        "base_price": 17.0,
+        "shares_outstanding": 75708873,
+        "free_float_pct": 40.0
     },
     "KUKZ": {
         "name": "Kakuzi PLC",
         "sector": "Agricultural",
         "yahoo": "KUKZ.NR",
-        "base_price": 385.0
+        "base_price": 385.0,
+        "shares_outstanding": 19600000,
+        "free_float_pct": 49.0
     },
     "SASN": {
         "name": "Sasini PLC",
         "sector": "Agricultural",
         "yahoo": "SASN.NR",
-        "base_price": 20.0
+        "base_price": 20.0,
+        "shares_outstanding": 228055000,
+        "free_float_pct": 35.0
     },
     "FMLY": {
         "name": "Family Bank Limited",
         "sector": "Banking",
         "yahoo": "FMLY.NR",
-        "base_price": 18.0
+        "base_price": 18.0,
+        "shares_outstanding": 1287000000,
+        "free_float_pct": 50.0
     },
     "ALP": {
         "name": "ALP Real Estate Investment Trust",

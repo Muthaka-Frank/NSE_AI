@@ -25,6 +25,12 @@ class PredictionResult:
     price_target: Optional[float] = None
     risk_level: str = "MEDIUM"
     timeframe: Optional[str] = None
+    spread_pct: Optional[float] = None
+    turnover_velocity_pct: Optional[float] = None
+    liquidity_rating: Optional[str] = None
+    liquidity_premium_pct: Optional[float] = None
+    breakeven_price: Optional[float] = None
+    fee_hurdle_pct: Optional[float] = None
 
 
 def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResult] = None) -> PredictionResult:
@@ -41,27 +47,40 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
     volumes = np.array([d["volume"] for d in history], dtype=float)
     current_price = closes[-1]
 
-    # ── Illiquidity & Trading Volume Guardrail ──────────────────────────────────
+    # ── Liquidity Intelligence & Free-Float Screening ───────────────────────────
+    from ml.liquidity import analyze_liquidity
+    liq = analyze_liquidity(ticker, history)
+
     recent_vols = volumes[-min(10, len(volumes)):]
     zero_vol_days = int(np.sum(recent_vols <= 0))
     avg_recent_vol = float(np.mean(recent_vols)) if len(recent_vols) > 0 else 0.0
     
-    if len(recent_vols) >= 5:
-        zero_ratio = zero_vol_days / len(recent_vols)
-        if zero_ratio >= 0.60 or (avg_recent_vol < 1000 and len(history) >= 10):
-            return PredictionResult(
-                ticker=ticker,
-                direction=SILENCE_LABEL,
-                confidence=0.35,
-                reasoning=[
-                    f"Liquidity Guardrail: Low trading activity (avg {int(avg_recent_vol):,} shares/day, {zero_vol_days}/{len(recent_vols)} zero-volume sessions).",
-                    "Signal suppressed to protect against illiquidity traps and artificial oscillator swings."
-                ],
-                signal_strength="NONE",
-                price_target=None,
-                risk_level="HIGH",
-                timeframe=None,
-            )
+    # Suppress signals on illiquid counters
+    is_illiquid = (liq.liquidity_rating == "ILLIQUID") or (
+        len(recent_vols) >= 5 and (
+            (zero_vol_days / len(recent_vols) >= 0.60) or (avg_recent_vol < 1000 and len(history) >= 10)
+        )
+    )
+
+    if is_illiquid:
+        return PredictionResult(
+            ticker=ticker,
+            direction=SILENCE_LABEL,
+            confidence=0.35,
+            reasoning=[
+                f"Liquidity Guardrail: Low trading activity (avg {int(avg_recent_vol):,} shares/day, {zero_vol_days}/{len(recent_vols)} zero-volume sessions).",
+                f"Market Friction: {liq.summary}",
+                "Signal suppressed to protect against illiquidity traps and artificial oscillator swings."
+            ],
+            signal_strength="NONE",
+            price_target=None,
+            risk_level="HIGH",
+            timeframe=None,
+            spread_pct=liq.spread_pct,
+            turnover_velocity_pct=liq.turnover_velocity_monthly_pct,
+            liquidity_rating=liq.liquidity_rating,
+            liquidity_premium_pct=liq.risk_premium_pct,
+        )
 
     # --- Machine Learning Pipeline (Random Forest Classifier) ---
     # Unconditionally halted until ENABLE_ML_MODEL is set to True
@@ -414,6 +433,9 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
     pivots = _pivot_points(highs[-1], lows[-1], closes[-1])
     reasons.append(f"Key Pivot Levels: Pivot {pivots['pivot']}, Support {pivots['s1']}, Resistance {pivots['r1']}")
 
+    # ── Liquidity Profile ───────────────────────────────────────────────────────
+    reasons.append(f"Liquidity Profile ({liq.rating_badge}): Est. Spread {liq.spread_pct:.1f}%, Turnover Velocity {liq.turnover_velocity_monthly_pct:.2f}%/mo.")
+
     if confidence < CONFIDENCE_THRESHOLD:
         return PredictionResult(
             ticker=ticker,
@@ -422,16 +444,37 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
             reasoning=["Confidence below threshold - market direction unclear.", "Holding pattern. No signal issued."] + reasons,
             signal_strength="NONE",
             risk_level="UNKNOWN",
+            spread_pct=liq.spread_pct,
+            turnover_velocity_pct=liq.turnover_velocity_monthly_pct,
+            liquidity_rating=liq.liquidity_rating,
+            liquidity_premium_pct=liq.risk_premium_pct,
         )
 
     # ── Statistical ATR Volatility Stop-Loss & Target Pricing ─────────────────
     atr = _atr(highs, lows, closes, 14)
-    # Stop loss standard (1.5 * ATR), Target (2.5 * ATR)
+    breakeven_price = None
+    fee_hurdle_pct = None
+
     if bull_signals > bear_signals:
         direction = "BUY"
         target    = round(current_price + 2.5 * atr, 2)
-        risk      = "LOW" if confidence > 0.85 else "MEDIUM"
+        risk      = "LOW" if (confidence > 0.85 and liq.liquidity_rating == "HIGH") else "MEDIUM"
         reasons.append(f"ATR Volatility ({atr:.2f}) target set at {target:.2f} (+2.5 ATR)")
+        
+        from core.fees import calculate_breakeven_price, ROUNDTRIP_BREAKEVEN_HURDLE_PCT
+        breakeven_price = calculate_breakeven_price(current_price)
+        fee_hurdle_pct = round(ROUNDTRIP_BREAKEVEN_HURDLE_PCT, 2)
+        
+        # Check if projected gain clears statutory fees and bid-ask spread
+        projected_gain = ((target - current_price) / current_price) * 100.0
+        total_hurdle_pct = fee_hurdle_pct + (liq.spread_pct or 0.0)
+        
+        if projected_gain <= fee_hurdle_pct:
+            reasons.append(f"⚠️ Fee Hurdle Warning: Target gain ({projected_gain:+.1f}%) fails to clear statutory transaction fee hurdle ({fee_hurdle_pct:.2f}%). Target breakeven: KES {breakeven_price:.2f}.")
+        elif projected_gain <= total_hurdle_pct:
+            reasons.append(f"⚠️ Slippage Caution: Target gain ({projected_gain:+.1f}%) is compressed by roundtrip fee + spread hurdle ({total_hurdle_pct:.1f}%). High risk of execution erosion.")
+        else:
+            reasons.append(f"Fee Clearance: Target clears statutory roundtrip fee hurdle ({fee_hurdle_pct:.2f}% / KES {breakeven_price:.2f}) by +{projected_gain - fee_hurdle_pct:.1f}%.")
     else:
         direction = "SELL"
         target    = round(current_price - 2.5 * atr, 2)
@@ -479,6 +522,12 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
         price_target=target,
         risk_level=risk,
         timeframe=timeframe,
+        spread_pct=liq.spread_pct,
+        turnover_velocity_pct=liq.turnover_velocity_monthly_pct,
+        liquidity_rating=liq.liquidity_rating,
+        liquidity_premium_pct=liq.risk_premium_pct,
+        breakeven_price=breakeven_price,
+        fee_hurdle_pct=fee_hurdle_pct,
     )
 
 
@@ -504,6 +553,11 @@ def score_all(stocks_data: list[dict]) -> list[dict]:
                 "risk_level":      result.risk_level,
                 "reasoning":       result.reasoning[:3],
                 "timeframe":       result.timeframe,
+                "spread_pct":      result.spread_pct,
+                "liquidity_rating": result.liquidity_rating,
+                "turnover_velocity_pct": result.turnover_velocity_pct,
+                "breakeven_price": result.breakeven_price,
+                "fee_hurdle_pct":  result.fee_hurdle_pct,
             })
     return sorted(recommendations, key=lambda x: x["confidence"], reverse=True)
 

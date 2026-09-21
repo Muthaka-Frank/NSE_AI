@@ -369,6 +369,7 @@ function renderRecommendationsFromData(recs) {
           <span class="rec-target-label">Price Target</span>
           <span class="rec-target-value">KES ${r.price_target}</span>
         </div>
+        ${r.breakeven_price ? `<div style="width:100%; display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted);"><span>Statutory Breakeven:</span><b style="color:var(--accent);">KES ${r.breakeven_price.toFixed(2)} (+4.3%)</b></div>` : ''}
         ${r.timeframe ? `<span style="font-size:11px; color:var(--text-muted);">Est. Timeframe: <b>${r.timeframe}</b></span>` : ''}
       </div>
     </div>
@@ -421,6 +422,13 @@ function renderSignalCard(d) {
     </div>
     <div class="signal-strength-badge ${d.signal_strength}">${d.signal_strength}</div>
     <div class="signal-conf">Confidence: <b>${d.confidence_pct || '—'}</b></div>
+    ${d.liquidity_rating ? `
+      <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:6px 10px; border-radius:6px; margin:8px 0; font-size:12px; border:1px solid var(--border-color);">
+        <span><b style="color:${d.liquidity_rating === 'HIGH' ? 'var(--accent)' : d.liquidity_rating === 'MODERATE' ? '#ffd700' : 'var(--red)'};">${d.liquidity_rating === 'HIGH' ? '🟢 High Liquidity' : d.liquidity_rating === 'MODERATE' ? '🟡 Moderate' : '🔴 Illiquid Trap'}</b></span>
+        <span style="color:var(--text-secondary);">Spread: <b style="font-family:var(--font-mono); color:var(--text-primary);">${d.spread_pct !== null && d.spread_pct !== undefined ? d.spread_pct.toFixed(1) + '%' : '—'}</b></span>
+        <span style="color:var(--text-secondary);">Turnover: <b style="font-family:var(--font-mono); color:var(--text-primary);">${d.turnover_velocity_pct !== null && d.turnover_velocity_pct !== undefined ? d.turnover_velocity_pct.toFixed(2) + '%/mo' : '—'}</b></span>
+      </div>
+    ` : ''}
     <ul class="signal-reasons">
       ${(d.reasoning || []).map(r => `<li>${r}</li>`).join('')}
     </ul>
@@ -430,6 +438,7 @@ function renderSignalCard(d) {
           <div class="signal-target-label">Price Target</div>
           <div class="signal-target-val">KES ${d.price_target}</div>
         </div>
+        ${d.breakeven_price ? `<div style="width:100%; display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted);"><span>Statutory Breakeven:</span><b style="color:var(--accent);">KES ${d.breakeven_price.toFixed(2)} (+4.3%)</b></div>` : ''}
         ${d.timeframe ? `<div class="signal-timeframe" style="font-size:12px; color:var(--text-muted); width:100%; text-align:right;">Expected within: <b>${d.timeframe}</b></div>` : ''}
       </div>` : ''}
     <div class="signal-disclaimer">⚠️ Informational only. Not financial advice.</div>
@@ -770,25 +779,36 @@ function renderPortfolioFromData(data) {
   if (!tbody) return;
   
   if (!data || !data.holdings || !data.holdings.length) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:1.5rem; color:var(--text-muted);">No holdings recorded.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:1.5rem; color:var(--text-muted);">No holdings recorded.</td></tr>`;
     document.getElementById('port-total-cost').textContent = 'KES 0.00';
     document.getElementById('port-market-value').textContent = 'KES 0.00';
     document.getElementById('port-profit-loss').textContent = 'KES 0.00 (0.00%)';
+    const feeEl = document.getElementById('port-statutory-fees');
+    if (feeEl) feeEl.textContent = 'KES 0.00';
     return;
   }
   
   tbody.innerHTML = data.holdings.map(h => {
-    const pl = h.profit_loss || 0.0;
-    const plPct = h.profit_loss_pct || 0.0;
+    const netPl = (h.net_profit_loss !== undefined) ? h.net_profit_loss : (h.profit_loss || 0.0);
+    const netPlPct = (h.net_profit_loss_pct !== undefined) ? h.net_profit_loss_pct : (h.profit_loss_pct || 0.0);
+    const bePrice = h.breakeven_price || (h.buy_price * 1.04269);
+    const netVal = (h.net_market_value !== undefined) ? h.net_market_value : (h.market_value || 0.0);
+    const totalFees = h.total_statutory_fees || 0.0;
+
     return `
       <tr>
         <td style="font-weight:600; cursor:pointer;" onclick="jumpToStock('${h.ticker}')">${h.ticker}</td>
-        <td>${h.quantity}</td>
+        <td>${h.quantity.toLocaleString()}</td>
         <td>KES ${h.buy_price.toFixed(2)}</td>
+        <td style="color:var(--accent); font-weight:600;" title="Target price to clear buy & sell statutory fees">
+          KES ${bePrice.toFixed(2)} <span style="font-size:0.75rem; color:var(--text-muted);">(+4.3%)</span>
+        </td>
         <td>KES ${h.current_price.toFixed(2)}</td>
-        <td>KES ${h.market_value.toFixed(2)}</td>
-        <td class="${pl >= 0 ? 'up' : 'down'}">
-          ${pl >= 0 ? '+' : ''}${pl.toFixed(2)} (${plPct.toFixed(2)}%)
+        <td title="Net liquidation value after exit fees">
+          KES ${netVal.toLocaleString('en-KE', { minimumFractionDigits: 2 })}
+        </td>
+        <td class="${netPl >= 0 ? 'up' : 'down'}" title="True Net P&L (Total statutory fees: KES ${totalFees.toFixed(2)})">
+          ${netPl >= 0 ? '+' : ''}KES ${netPl.toFixed(2)} (${netPlPct.toFixed(2)}%)
         </td>
         <td style="text-align:right;">
           <button onclick="removePortfolio('${h.id}')" style="display:inline-block; padding:0.25rem 0.5rem; font-size:0.8rem; border-radius:4px; border:1px solid var(--border-color); background:transparent; color:#ff4f4f; cursor:pointer;">✕ Sell</button>
@@ -797,13 +817,52 @@ function renderPortfolioFromData(data) {
     `;
   }).join('');
   
-  const sum = data.summary || { total_cost: 0, total_value: 0, portfolio_profit_loss: 0, portfolio_profit_loss_pct: 0 };
-  document.getElementById('port-total-cost').textContent = `KES ${sum.total_cost.toLocaleString('en-KE', { minimumFractionDigits: 2 })}`;
-  document.getElementById('port-market-value').textContent = `KES ${sum.total_value.toLocaleString('en-KE', { minimumFractionDigits: 2 })}`;
+  const sum = data.summary || {};
+  const totalCost = sum.total_outlay !== undefined ? sum.total_outlay : (sum.total_cost || 0);
+  const totalValue = sum.total_net_value !== undefined ? sum.total_net_value : (sum.total_value || 0);
+  const netPl = sum.portfolio_net_profit_loss !== undefined ? sum.portfolio_net_profit_loss : (sum.portfolio_profit_loss || 0);
+  const netPlPct = sum.portfolio_net_profit_loss_pct !== undefined ? sum.portfolio_net_profit_loss_pct : (sum.portfolio_profit_loss_pct || 0);
+  const totalFees = sum.total_statutory_fees || 0;
+
+  document.getElementById('port-total-cost').textContent = `KES ${totalCost.toLocaleString('en-KE', { minimumFractionDigits: 2 })}`;
+  document.getElementById('port-market-value').textContent = `KES ${totalValue.toLocaleString('en-KE', { minimumFractionDigits: 2 })}`;
   
   const plEl = document.getElementById('port-profit-loss');
-  plEl.textContent = `${sum.portfolio_profit_loss >= 0 ? '+' : ''}${sum.portfolio_profit_loss.toLocaleString('en-KE', { minimumFractionDigits: 2 })} (${sum.portfolio_profit_loss_pct.toFixed(2)}%)`;
-  plEl.className = sum.portfolio_profit_loss >= 0 ? 'up' : 'down';
+  plEl.textContent = `${netPl >= 0 ? '+' : ''}KES ${netPl.toLocaleString('en-KE', { minimumFractionDigits: 2 })} (${netPlPct.toFixed(2)}%)`;
+  plEl.className = netPl >= 0 ? 'up' : 'down';
+
+  const feeEl = document.getElementById('port-statutory-fees');
+  if (feeEl) {
+    feeEl.textContent = `KES ${totalFees.toLocaleString('en-KE', { minimumFractionDigits: 2 })}`;
+  }
+}
+
+function updateBuyModalPreview() {
+  const qtyInput = document.getElementById('buy-qty-input');
+  const priceInput = document.getElementById('buy-price-input');
+  const grossEl = document.getElementById('modal-fee-gross');
+  const statutoryEl = document.getElementById('modal-fee-statutory');
+  const outlayEl = document.getElementById('modal-fee-outlay');
+  const beEl = document.getElementById('modal-fee-breakeven');
+
+  if (!qtyInput || !priceInput || !grossEl || !statutoryEl || !outlayEl || !beEl) return;
+
+  const qty = parseInt(qtyInput.value) || 0;
+  const price = parseFloat(priceInput.value) || 0.0;
+
+  const gross = qty * price;
+  // Kenya statutory single-way rate: 2.09% (Broker 1.50% + VAT 0.24% + CMA 0.14% + NSE 0.12% + CDSC 0.08% + ICF 0.01%)
+  const buyFees = gross * 0.0209;
+  const totalOutlay = gross + buyFees;
+  // Roundtrip breakeven multiplier: (1 + 0.0209) / (1 - 0.0209) ≈ 1.04269 (+4.27%)
+  const breakeven = price > 0 ? (price * 1.04269) : 0.0;
+
+  grossEl.textContent = `KES ${gross.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  statutoryEl.textContent = `+ KES ${buyFees.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  outlayEl.textContent = `KES ${totalOutlay.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  beEl.textContent = price > 0 
+    ? `KES ${breakeven.toFixed(2)} (+4.27%)`
+    : `KES 0.00 (+4.27%)`;
 }
 
 function bindWatchlistAndPortfolioEvents() {
@@ -836,6 +895,40 @@ function bindWatchlistAndPortfolioEvents() {
       }
     };
   }
+
+  // Real-time calculation listeners for Buy Modal
+  const qtyInput = document.getElementById('buy-qty-input');
+  const priceInput = document.getElementById('buy-price-input');
+  const tickerSelect = document.getElementById('buy-ticker-select');
+  const btnShowBuy = document.getElementById('btn-show-buy-modal');
+
+  if (qtyInput) qtyInput.addEventListener('input', updateBuyModalPreview);
+  if (priceInput) priceInput.addEventListener('input', updateBuyModalPreview);
+  
+  if (tickerSelect) {
+    tickerSelect.addEventListener('change', () => {
+      const ticker = tickerSelect.value;
+      if (ticker && allStocks && allStocks.length) {
+        const found = allStocks.find(s => s.ticker === ticker);
+        if (found && found.price) {
+          priceInput.value = found.price;
+        }
+      }
+      updateBuyModalPreview();
+    });
+  }
+
+  if (btnShowBuy) {
+    btnShowBuy.addEventListener('click', () => {
+      if (tickerSelect && tickerSelect.value && (!priceInput.value || priceInput.value <= 0)) {
+        const found = (allStocks || []).find(s => s.ticker === tickerSelect.value);
+        if (found && found.price) {
+          priceInput.value = found.price;
+        }
+      }
+      updateBuyModalPreview();
+    });
+  }
   
   const btnB = document.getElementById('btn-submit-buy');
   if (btnB) {
@@ -854,6 +947,7 @@ function bindWatchlistAndPortfolioEvents() {
         document.getElementById('buy-modal').style.display = 'none';
         document.getElementById('buy-qty-input').value = '';
         document.getElementById('buy-price-input').value = '';
+        updateBuyModalPreview();
         loadPortfolio();
       }
     };

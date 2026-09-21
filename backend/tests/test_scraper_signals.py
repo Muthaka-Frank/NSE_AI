@@ -130,7 +130,14 @@ class TestScraperAndSignals(unittest.TestCase):
     def test_multi_timeframe_alignment(self):
         """Verify that multi-timeframe checks and pivot points are computed in reasons."""
         mock_history = [
-            {"date": f"2026-05-{i:02d}", "open": 20.0, "high": 21.0, "low": 19.5, "close": 20.0 + (i * 0.2), "volume": 500000}
+            {
+                "date": f"2026-05-{i:02d}",
+                "open": round(20.0 + (i * 0.2), 2),
+                "high": round((20.0 + (i * 0.2)) * 1.015, 2),
+                "low": round((20.0 + (i * 0.2)) * 0.985, 2),
+                "close": round(20.0 + (i * 0.2), 2),
+                "volume": 5000000
+            }
             for i in range(1, 40)
         ]
         pred = predict("SCOM", mock_history)

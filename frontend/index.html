@@ -191,20 +191,21 @@
             <div><span style="color:var(--text-muted);">Sharpe Ratio:</span> <strong id="opt-sharpe-ratio">--</strong></div>
           </div>
         </div>
-        <div class="portfolio-summary-bar" id="portfolio-summary" style="display:flex; flex-wrap:wrap; gap:1.5rem; margin-top:1rem; padding:1rem; background:rgba(255,255,255,0.02); border-radius:8px; border:1px solid var(--border-color);">
-          <div><div style="font-size:0.8rem; color:var(--text-muted);">Total Cost</div><div style="font-size:1.2rem; font-weight:700;" id="port-total-cost">KES 0.00</div></div>
-          <div><div style="font-size:0.8rem; color:var(--text-muted);">Market Value</div><div style="font-size:1.2rem; font-weight:700;" id="port-market-value">KES 0.00</div></div>
-          <div><div style="font-size:0.8rem; color:var(--text-muted);">Profit / Loss</div><div style="font-size:1.2rem; font-weight:700;" id="port-profit-loss">KES 0.00 (0.00%)</div></div>
+        <div class="portfolio-summary-bar" id="portfolio-summary" style="display:flex; flex-wrap:wrap; gap:1.2rem; margin-top:1rem; padding:1rem; background:rgba(255,255,255,0.02); border-radius:8px; border:1px solid var(--border-color);">
+          <div><div style="font-size:0.75rem; color:var(--text-muted);">Total Outlay (Inc. Fees)</div><div style="font-size:1.1rem; font-weight:700;" id="port-total-cost">KES 0.00</div></div>
+          <div><div style="font-size:0.75rem; color:var(--text-muted);">Net Liquidation Value</div><div style="font-size:1.1rem; font-weight:700;" id="port-market-value">KES 0.00</div></div>
+          <div><div style="font-size:0.75rem; color:var(--text-muted);">True Net P&L (Post-Tax & Fees)</div><div style="font-size:1.1rem; font-weight:700;" id="port-profit-loss">KES 0.00 (0.00%)</div></div>
+          <div><div style="font-size:0.75rem; color:var(--text-muted);">Statutory Fees (Roundtrip)</div><div style="font-size:1.1rem; font-weight:700; color:#ffb74d;" id="port-statutory-fees">KES 0.00</div></div>
         </div>
         <div class="table-wrap" style="margin-top: 1rem; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-card);">
           <table class="stocks-table" style="margin-bottom: 0;">
             <thead>
               <tr>
-                <th>Ticker</th><th>Shares</th><th>Buy Price</th><th>Current</th><th>Value</th><th>P&L</th><th style="text-align:right;">Action</th>
+                <th>Ticker</th><th>Shares</th><th>Buy Price</th><th>Breakeven</th><th>Current</th><th>Net Value</th><th>Net P&L</th><th style="text-align:right;">Action</th>
               </tr>
             </thead>
             <tbody id="portfolio-tbody">
-              <tr><td colspan="7" style="text-align:center; padding:1.5rem; color:var(--text-muted);">No holdings recorded.</td></tr>
+              <tr><td colspan="8" style="text-align:center; padding:1.5rem; color:var(--text-muted);">No holdings recorded.</td></tr>
             </tbody>
           </table>
         </div>
@@ -261,10 +262,31 @@
         <label style="display:block; font-size:0.85rem; margin-bottom:0.4rem; color:var(--text-muted);">Quantity (Shares)</label>
         <input type="number" id="buy-qty-input" style="width:100%; padding:0.5rem; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; border-radius:6px;" placeholder="e.g. 500" />
       </div>
-      <div style="margin-bottom:1.5rem;">
+      <div style="margin-bottom:1rem;">
         <label style="display:block; font-size:0.85rem; margin-bottom:0.4rem; color:var(--text-muted);">Buy Price (KES)</label>
         <input type="number" step="0.01" id="buy-price-input" style="width:100%; padding:0.5rem; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:#fff; border-radius:6px;" placeholder="e.g. 31.85" />
       </div>
+
+      <!-- Real-Time Statutory Fee & Breakeven Calculation Preview -->
+      <div id="buy-fee-preview" style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:8px; padding:0.85rem; margin-bottom:1.5rem; font-size:0.82rem;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:0.35rem;">
+          <span style="color:var(--text-muted);">Gross Consideration:</span>
+          <span id="modal-fee-gross" style="font-weight:600; color:#fff;">KES 0.00</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom:0.35rem;">
+          <span style="color:var(--text-muted);" title="Brokerage 1.50% + VAT 0.24% + CMA 0.14% + NSE 0.12% + CDSC 0.08% + ICF 0.01%">Statutory Fees (2.09%):</span>
+          <span id="modal-fee-statutory" style="color:#ffb74d;">+ KES 0.00</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom:0.6rem; border-top:1px dashed rgba(255,255,255,0.1); padding-top:0.4rem;">
+          <span style="color:var(--text-muted); font-weight:600;">Total Outlay (Capital Required):</span>
+          <span id="modal-fee-outlay" style="font-weight:700; color:#00e676;">KES 0.00</span>
+        </div>
+        <div style="background:rgba(124, 77, 255, 0.12); border:1px solid rgba(124, 77, 255, 0.35); border-radius:6px; padding:0.45rem 0.6rem; display:flex; justify-content:space-between; align-items:center;">
+          <span style="color:var(--text-muted); font-size:0.78rem;">Target Breakeven Exit:</span>
+          <span style="font-size:0.92rem; font-weight:700; color:var(--accent);" id="modal-fee-breakeven">KES 0.00 (+4.27%)</span>
+        </div>
+      </div>
+
       <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
         <button onclick="document.getElementById('buy-modal').style.display='none'" style="padding:0.5rem 1rem; background:transparent; border:1px solid var(--border-color); color:#fff; border-radius:6px; cursor:pointer;">Cancel</button>
         <button id="btn-submit-buy" style="padding:0.5rem 1rem; background:var(--accent); border:none; color:#000; font-weight:600; border-radius:6px; cursor:pointer;">Save Holding</button>
