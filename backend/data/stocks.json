@@ -5,7 +5,10 @@
         "yahoo": "SCOM.NR",
         "base_price": 30.9,
         "shares_outstanding": 40065428000,
-        "free_float_pct": 25.0
+        "free_float_pct": 25.0,
+        "dividend_per_share": 1.2,
+        "payout_frequency": "Interim + Final",
+        "payout_ratio_pct": 78.5
     },
     "EQTY": {
         "name": "Equity Group Holdings",
@@ -13,7 +16,10 @@
         "yahoo": "EQTY.NR",
         "base_price": 72.0,
         "shares_outstanding": 3773674802,
-        "free_float_pct": 65.0
+        "free_float_pct": 65.0,
+        "dividend_per_share": 4.0,
+        "payout_frequency": "Annual",
+        "payout_ratio_pct": 35.2
     },
     "KCB": {
         "name": "KCB Group PLC",
@@ -21,7 +27,10 @@
         "yahoo": "KCB.NR",
         "base_price": 67.5,
         "shares_outstanding": 3213462815,
-        "free_float_pct": 75.0
+        "free_float_pct": 75.0,
+        "dividend_per_share": 1.5,
+        "payout_frequency": "Annual",
+        "payout_ratio_pct": 28.4
     },
     "COOP": {
         "name": "Co-operative Bank",
@@ -29,7 +38,10 @@
         "yahoo": "COOP.NR",
         "base_price": 31.85,
         "shares_outstanding": 5867175690,
-        "free_float_pct": 30.0
+        "free_float_pct": 30.0,
+        "dividend_per_share": 1.5,
+        "payout_frequency": "Annual",
+        "payout_ratio_pct": 42.1
     },
     "EABL": {
         "name": "East African Breweries",
@@ -37,7 +49,10 @@
         "yahoo": "EABL.NR",
         "base_price": 248.25,
         "shares_outstanding": 790774356,
-        "free_float_pct": 35.0
+        "free_float_pct": 35.0,
+        "dividend_per_share": 5.5,
+        "payout_frequency": "Interim + Final",
+        "payout_ratio_pct": 54.0
     },
     "BAT": {
         "name": "BAT Kenya",
@@ -45,7 +60,10 @@
         "yahoo": "BAT.NR",
         "base_price": 520.0,
         "shares_outstanding": 100000000,
-        "free_float_pct": 40.0
+        "free_float_pct": 40.0,
+        "dividend_per_share": 50.0,
+        "payout_frequency": "Interim + Final",
+        "payout_ratio_pct": 88.0
     },
     "KPLC": {
         "name": "Kenya Power & Lighting",
@@ -53,7 +71,10 @@
         "yahoo": "KPLC.NR",
         "base_price": 15.5,
         "shares_outstanding": 1951467045,
-        "free_float_pct": 49.0
+        "free_float_pct": 49.0,
+        "dividend_per_share": 0.0,
+        "payout_frequency": "None",
+        "payout_ratio_pct": 0.0
     },
     "ABSA": {
         "name": "Absa Bank Kenya",
@@ -61,7 +82,10 @@
         "yahoo": "ABSA.NR",
         "base_price": 29.6,
         "shares_outstanding": 5431536000,
-        "free_float_pct": 31.0
+        "free_float_pct": 31.0,
+        "dividend_per_share": 1.55,
+        "payout_frequency": "Interim + Final",
+        "payout_ratio_pct": 51.0
     },
     "NCBA": {
         "name": "NCBA Group PLC",
@@ -69,7 +93,10 @@
         "yahoo": "NCBA.NR",
         "base_price": 89.0,
         "shares_outstanding": 1647516061,
-        "free_float_pct": 45.0
+        "free_float_pct": 45.0,
+        "dividend_per_share": 4.75,
+        "payout_frequency": "Interim + Final",
+        "payout_ratio_pct": 46.5
     },
     "STND": {
         "name": "Standard Chartered Kenya",
@@ -77,7 +104,10 @@
         "yahoo": "SCBK.NR",
         "base_price": 342.75,
         "shares_outstanding": 387031000,
-        "free_float_pct": 26.0
+        "free_float_pct": 26.0,
+        "dividend_per_share": 29.0,
+        "payout_frequency": "Interim + Final",
+        "payout_ratio_pct": 75.0
     },
     "BAMB": {
         "name": "Bamburi Cement",
@@ -85,7 +115,10 @@
         "yahoo": "BAMB.NR",
         "base_price": 54.0,
         "shares_outstanding": 362959275,
-        "free_float_pct": 41.0
+        "free_float_pct": 41.0,
+        "dividend_per_share": 5.47,
+        "payout_frequency": "Annual",
+        "payout_ratio_pct": 68.0
     },
     "KENR": {
         "name": "Kenya Re-Insurance",
@@ -93,7 +126,10 @@
         "yahoo": "KENR.NR",
         "base_price": 3.3,
         "shares_outstanding": 2799796200,
-        "free_float_pct": 40.0
+        "free_float_pct": 40.0,
+        "dividend_per_share": 0.2,
+        "payout_frequency": "Annual",
+        "payout_ratio_pct": 32.0
     },
     "JUB": {
         "name": "Jubilee Holdings",
@@ -101,7 +137,10 @@
         "yahoo": "JUB.NR",
         "base_price": 366.0,
         "shares_outstanding": 72472950,
-        "free_float_pct": 55.0
+        "free_float_pct": 55.0,
+        "dividend_per_share": 13.0,
+        "payout_frequency": "Interim + Final",
+        "payout_ratio_pct": 38.0
     },
     "SBIC": {
         "name": "Stanbic Holdings",
@@ -109,7 +148,10 @@
         "yahoo": "SBIC.NR",
         "base_price": 270.0,
         "shares_outstanding": 395321000,
-        "free_float_pct": 25.0
+        "free_float_pct": 25.0,
+        "dividend_per_share": 18.0,
+        "payout_frequency": "Interim + Final",
+        "payout_ratio_pct": 58.0
     },
     "HFCK": {
         "name": "HF Group",
@@ -117,7 +159,10 @@
         "yahoo": "HFCK.NR",
         "base_price": 9.78,
         "shares_outstanding": 384614000,
-        "free_float_pct": 60.0
+        "free_float_pct": 60.0,
+        "dividend_per_share": 0.0,
+        "payout_frequency": "None",
+        "payout_ratio_pct": 0.0
     },
     "IMH": {
         "name": "I&M Group PLC",
@@ -125,7 +170,10 @@
         "yahoo": "IMH.NR",
         "base_price": 21.0,
         "shares_outstanding": 1653601296,
-        "free_float_pct": 40.0
+        "free_float_pct": 40.0,
+        "dividend_per_share": 2.55,
+        "payout_frequency": "Annual",
+        "payout_ratio_pct": 45.0
     },
     "DTK": {
         "name": "Diamond Trust Bank Kenya",
@@ -133,7 +181,10 @@
         "yahoo": "DTK.NR",
         "base_price": 54.0,
         "shares_outstanding": 279600000,
-        "free_float_pct": 50.0
+        "free_float_pct": 50.0,
+        "dividend_per_share": 5.0,
+        "payout_frequency": "Annual",
+        "payout_ratio_pct": 25.0
     },
     "BRIT": {
         "name": "Britam Holdings PLC",
@@ -141,7 +192,10 @@
         "yahoo": "BRIT.NR",
         "base_price": 5.2,
         "shares_outstanding": 2523486816,
-        "free_float_pct": 40.0
+        "free_float_pct": 40.0,
+        "dividend_per_share": 0.0,
+        "payout_frequency": "None",
+        "payout_ratio_pct": 0.0
     },
     "CIC": {
         "name": "CIC Insurance Group",
@@ -149,7 +203,10 @@
         "yahoo": "CIC.NR",
         "base_price": 2.2,
         "shares_outstanding": 2615577856,
-        "free_float_pct": 40.0
+        "free_float_pct": 40.0,
+        "dividend_per_share": 0.13,
+        "payout_frequency": "Annual",
+        "payout_ratio_pct": 35.0
     },
     "KEGN": {
         "name": "KenGen",
@@ -157,7 +214,10 @@
         "yahoo": "KEGN.NR",
         "base_price": 2.3,
         "shares_outstanding": 6594522096,
-        "free_float_pct": 30.0
+        "free_float_pct": 30.0,
+        "dividend_per_share": 0.3,
+        "payout_frequency": "Annual",
+        "payout_ratio_pct": 40.0
     },
     "TOTL": {
         "name": "TotalEnergies Marketing",
@@ -165,7 +225,10 @@
         "yahoo": "TOTL.NR",
         "base_price": 18.0,
         "shares_outstanding": 175049000,
-        "free_float_pct": 18.0
+        "free_float_pct": 18.0,
+        "dividend_per_share": 1.92,
+        "payout_frequency": "Annual",
+        "payout_ratio_pct": 48.0
     },
     "CTUM": {
         "name": "Centum Investment Company",
@@ -173,7 +236,10 @@
         "yahoo": "CTUM.NR",
         "base_price": 9.0,
         "shares_outstanding": 665441714,
-        "free_float_pct": 75.0
+        "free_float_pct": 75.0,
+        "dividend_per_share": 0.6,
+        "payout_frequency": "Annual",
+        "payout_ratio_pct": 44.0
     },
     "UNGA": {
         "name": "Unga Group PLC",
@@ -181,7 +247,10 @@
         "yahoo": "UNGA.NR",
         "base_price": 17.0,
         "shares_outstanding": 75708873,
-        "free_float_pct": 40.0
+        "free_float_pct": 40.0,
+        "dividend_per_share": 0.0,
+        "payout_frequency": "None",
+        "payout_ratio_pct": 0.0
     },
     "KUKZ": {
         "name": "Kakuzi PLC",
@@ -189,7 +258,10 @@
         "yahoo": "KUKZ.NR",
         "base_price": 385.0,
         "shares_outstanding": 19600000,
-        "free_float_pct": 49.0
+        "free_float_pct": 49.0,
+        "dividend_per_share": 24.0,
+        "payout_frequency": "Annual",
+        "payout_ratio_pct": 55.0
     },
     "SASN": {
         "name": "Sasini PLC",
@@ -197,7 +269,10 @@
         "yahoo": "SASN.NR",
         "base_price": 20.0,
         "shares_outstanding": 228055000,
-        "free_float_pct": 35.0
+        "free_float_pct": 35.0,
+        "dividend_per_share": 1.0,
+        "payout_frequency": "Interim + Final",
+        "payout_ratio_pct": 42.0
     },
     "FMLY": {
         "name": "Family Bank Limited",
@@ -205,7 +280,10 @@
         "yahoo": "FMLY.NR",
         "base_price": 18.0,
         "shares_outstanding": 1287000000,
-        "free_float_pct": 50.0
+        "free_float_pct": 50.0,
+        "dividend_per_share": 0.85,
+        "payout_frequency": "Annual",
+        "payout_ratio_pct": 30.0
     },
     "ALP": {
         "name": "ALP Real Estate Investment Trust",

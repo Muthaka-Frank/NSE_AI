@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 from routers import stocks, news, recommendations
 from routers import auth as auth_router
-from routers import watchlist, alerts, copilot
+from routers import watchlist, alerts, copilot, macro
 from auth.database import init_db
 from data.scheduler import start_scheduler
 
@@ -41,6 +41,7 @@ app.include_router(auth_router.router)
 app.include_router(watchlist.router)
 app.include_router(alerts.router)
 app.include_router(copilot.router)
+app.include_router(macro.router)
 
 
 @app.get("/")
@@ -65,6 +66,10 @@ def root():
             "watchlist":       "/api/watchlist",
             "portfolio":       "/api/portfolio",
             "alerts_sub":      "/api/alerts/subscribe",
+            "macro_benchmarks": "/api/macro/benchmarks",
+            "macro_yields":    "/api/macro/yield-comparison",
+            "macro_stock":     "/api/macro/stock/{ticker}",
+            "macro_portfolio": "/api/macro/portfolio",
         },
     }
 

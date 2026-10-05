@@ -31,6 +31,11 @@ class PredictionResult:
     liquidity_premium_pct: Optional[float] = None
     breakeven_price: Optional[float] = None
     fee_hurdle_pct: Optional[float] = None
+    dividend_yield_pct: Optional[float] = None
+    tbill_91d_pct: Optional[float] = None
+    net_yield_spread_pct: Optional[float] = None
+    required_growth_hurdle_pct: Optional[float] = None
+    macro_verdict: Optional[str] = None
 
 
 def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResult] = None) -> PredictionResult:
@@ -505,6 +510,30 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
             min_days = min(20, min_days)
         timeframe = f"{min_days} to {max_days} days"
 
+    # ── Macro Benchmark & Yield Spread Analysis ──────────────────────────────────
+    macro_prof = None
+    try:
+        from ml.macro import compute_stock_macro_profile
+        macro_prof = compute_stock_macro_profile(ticker, current_price)
+        if direction == "BUY":
+            if macro_prof["gross_dividend_yield"] >= 6.0:
+                reasons.append(
+                    f"Macro Yield Cushion: Cash dividend of {macro_prof['gross_dividend_yield']:.1f}% "
+                    f"(net {macro_prof['net_dividend_yield']:.1f}%) provides a strong downside buffer against the CBK 91-Day T-Bill "
+                    f"({macro_prof['tbill_91d_rate']:.1f}%). Required annual capital growth to beat risk-free paper is only +{macro_prof['required_growth_hurdle']:.1f}%."
+                )
+            elif macro_prof["gross_dividend_yield"] > 0:
+                reasons.append(
+                    f"Macro Benchmark: Equity yields {macro_prof['gross_dividend_yield']:.1f}% cash dividend vs risk-free 91-Day T-Bill "
+                    f"({macro_prof['tbill_91d_rate']:.1f}%). Requires +{macro_prof['required_growth_hurdle']:.1f}% annual capital growth to beat government debt."
+                )
+            else:
+                reasons.append(
+                    f"Macro Opportunity Cost: 0% dividend yield means trade is 100% reliant on capital growth to beat risk-free 91-Day CBK Treasury Bills ({macro_prof['tbill_91d_rate']:.1f}%/yr)."
+                )
+    except Exception:
+        macro_prof = None
+
     # Send real-time high-confidence alerts if >= 99%
     if confidence >= 0.99 and direction in ["BUY", "SELL"]:
         try:
@@ -528,6 +557,11 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
         liquidity_premium_pct=liq.risk_premium_pct,
         breakeven_price=breakeven_price,
         fee_hurdle_pct=fee_hurdle_pct,
+        dividend_yield_pct=macro_prof["gross_dividend_yield"] if macro_prof else None,
+        tbill_91d_pct=macro_prof["tbill_91d_rate"] if macro_prof else None,
+        net_yield_spread_pct=macro_prof["net_yield_spread"] if macro_prof else None,
+        required_growth_hurdle_pct=macro_prof["required_growth_hurdle"] if macro_prof else None,
+        macro_verdict=macro_prof["verdict_badge"] if macro_prof else None,
     )
 
 

@@ -223,6 +223,28 @@ async function loadOverview() {
   const data   = await api.getStocks();
   const stocks = data?.stocks || MOCK.stocks;
   _renderOverviewFromStocks(stocks);
+  loadMacroBenchmarks();
+}
+
+async function loadMacroBenchmarks() {
+  const data = await api.getMacroBenchmarks();
+  const b = data || MOCK.macroBenchmarks;
+  if (!b) return;
+  const t91 = document.getElementById('macro-tbill-91d');
+  const n91 = document.getElementById('macro-net-91d');
+  const t182 = document.getElementById('macro-tbill-182d');
+  const t364 = document.getElementById('macro-tbill-364d');
+  const cbr = document.getElementById('macro-cbr');
+  const inf = document.getElementById('macro-inflation');
+  const rrf = document.getElementById('macro-real-rf');
+
+  if (t91) t91.textContent = b.tbill_91d.toFixed(2) + '%';
+  if (n91) n91.textContent = (b.net_tbill_91d || (b.tbill_91d * 0.85)).toFixed(2) + '%';
+  if (t182) t182.textContent = b.tbill_182d.toFixed(2) + '%';
+  if (t364) t364.textContent = b.tbill_364d.toFixed(2) + '%';
+  if (cbr) cbr.textContent = b.cbr_rate.toFixed(2) + '%';
+  if (inf) inf.textContent = b.inflation_rate.toFixed(2) + '%';
+  if (rrf) rrf.textContent = (b.real_risk_free_rate >= 0 ? '+' : '') + b.real_risk_free_rate.toFixed(2) + '%';
 }
 
 function _renderOverviewFromStocks(stocks) {
@@ -429,6 +451,19 @@ function renderSignalCard(d) {
         <span style="color:var(--text-secondary);">Turnover: <b style="font-family:var(--font-mono); color:var(--text-primary);">${d.turnover_velocity_pct !== null && d.turnover_velocity_pct !== undefined ? d.turnover_velocity_pct.toFixed(2) + '%/mo' : '—'}</b></span>
       </div>
     ` : ''}
+    ${d.tbill_91d_pct !== undefined && d.tbill_91d_pct !== null ? `
+      <div style="background:rgba(124, 77, 255, 0.05); padding:8px 10px; border-radius:6px; margin:8px 0; font-size:12px; border:1px solid rgba(124, 77, 255, 0.25);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <span style="font-weight:600; color:var(--accent);">🏛️ CBK Benchmark (91d T-Bill: ${d.tbill_91d_pct.toFixed(1)}%)</span>
+          <span style="font-size:11px; padding:1px 6px; border-radius:4px; background:rgba(255,255,255,0.06);">${d.macro_verdict || 'Macro Gauge'}</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; color:var(--text-secondary); font-size:11.5px;">
+          <span>Div Yield: <b style="color:${(d.dividend_yield_pct || 0) >= 6 ? 'var(--accent)' : 'var(--text-primary)'}; font-family:var(--font-mono);">${d.dividend_yield_pct !== null ? d.dividend_yield_pct.toFixed(1) + '%' : '0.0%'}</b></span>
+          <span>Net Spread: <b style="font-family:var(--font-mono); color:${(d.net_yield_spread_pct || 0) >= 0 ? '#00e676' : '#ffb74d'};">${d.net_yield_spread_pct !== null ? (d.net_yield_spread_pct >= 0 ? '+' : '') + d.net_yield_spread_pct.toFixed(1) + '%' : '—'}</b></span>
+          <span>Growth Hurdle: <b style="font-family:var(--font-mono); color:var(--text-primary);">+${d.required_growth_hurdle_pct !== null ? d.required_growth_hurdle_pct.toFixed(1) + '%/yr' : '15.7%/yr'}</b></span>
+        </div>
+      </div>
+    ` : ''}
     <ul class="signal-reasons">
       ${(d.reasoning || []).map(r => `<li>${r}</li>`).join('')}
     </ul>
@@ -534,6 +569,9 @@ function renderTable(stocks) {
           ${up ? '▲' : '▼'} ${Math.abs(s.change_pct).toFixed(2)}%
         </td>
         <td class="table-volume" id="vol-${s.ticker}">${formatVolume(s.volume)}</td>
+        <td style="font-family:var(--font-mono); font-size:0.85rem; color:${(s.dividend_yield || 0) >= 6.0 ? '#00e676' : (s.dividend_yield || 0) > 0 ? '#fff' : 'var(--text-muted)'}; font-weight:${(s.dividend_yield || 0) >= 6.0 ? '600' : 'normal'};">
+          ${s.dividend_yield !== undefined && s.dividend_yield !== null ? s.dividend_yield.toFixed(1) + '%' : '0.0%'}
+        </td>
         <td><span class="signal-pill NO_SIGNAL" id="sig-${s.ticker}">…</span></td>
       </tr>
     `;
@@ -772,6 +810,9 @@ async function loadPortfolio() {
     localStorage.setItem('nse_portfolio_cache', JSON.stringify(data));
   }
   renderPortfolioFromData(data);
+  if (isDiversificationOpen) {
+    api.getPortfolioDiversification().then(d => d && renderDiversificationAnalytics(d));
+  }
 }
 
 function renderPortfolioFromData(data) {
@@ -1113,5 +1154,344 @@ async function runPortfolioOptimization() {
     weightsGrid.innerHTML = `<div style="color:var(--red); font-size:0.85rem;">Optimization failed: ${res ? res.message : 'Unknown error'}</div>`;
   }
 }
+
+// ── Portfolio Diversification & Correlation Heatmap ─────────────────────────
+let isDiversificationOpen = false;
+
+async function toggleDiversificationAnalytics() {
+  const panel = document.getElementById('portfolio-diversification-panel');
+  if (!panel) return;
+
+  if (isDiversificationOpen) {
+    panel.style.display = 'none';
+    isDiversificationOpen = false;
+    return;
+  }
+
+  panel.style.display = 'block';
+  isDiversificationOpen = true;
+
+  const listEl = document.getElementById('div-insights-list');
+  if (listEl) {
+    listEl.innerHTML = '<li>Computing covariance, correlation matrices, and HHI across holdings…</li>';
+  }
+
+  const data = await api.getPortfolioDiversification();
+  if (data) {
+    renderDiversificationAnalytics(data);
+  }
+}
+
+function renderDiversificationAnalytics(data) {
+  const emptyStateEl = document.getElementById('div-empty-state');
+  const activeContentEl = document.getElementById('div-active-content');
+  const badgeEl = document.getElementById('div-hhi-badge');
+
+  if (!data || data.has_holdings === false || !data.sector_allocations || data.sector_allocations.length === 0) {
+    if (emptyStateEl) emptyStateEl.style.display = 'block';
+    if (activeContentEl) activeContentEl.style.display = 'none';
+    if (badgeEl) {
+      badgeEl.textContent = '⚪ No Holdings Recorded';
+      badgeEl.style.color = 'var(--text-muted)';
+      badgeEl.style.borderColor = 'rgba(255,255,255,0.15)';
+      badgeEl.style.background = 'rgba(255,255,255,0.04)';
+    }
+    return;
+  }
+
+  // Active holdings exist
+  if (emptyStateEl) emptyStateEl.style.display = 'none';
+  if (activeContentEl) activeContentEl.style.display = 'block';
+
+  // 1. Badge & KPIs
+  const hhiEl = document.getElementById('div-sector-hhi');
+  const effSectorsEl = document.getElementById('div-eff-sectors');
+  const effAssetsEl = document.getElementById('div-eff-assets');
+
+  if (badgeEl) {
+    const icon = data.status === 'DIVERSIFIED' ? '🟢' : (data.status === 'MODERATE' ? '🟡' : '🔴');
+    badgeEl.textContent = `${icon} HHI: ${data.hhi_score.toFixed(4)} (${data.status})`;
+    badgeEl.style.color = data.status_color || '#fff';
+    badgeEl.style.borderColor = `${data.status_color}55`;
+    badgeEl.style.background = `${data.status_color}22`;
+  }
+
+  if (hhiEl) hhiEl.textContent = data.hhi_score.toFixed(4);
+  if (effSectorsEl) effSectorsEl.textContent = `${data.effective_sectors} sectors`;
+  if (effAssetsEl) effAssetsEl.textContent = `${data.effective_assets} assets`;
+
+  // 2. Sector Exposure Progress Bars
+  const sectorBarsEl = document.getElementById('div-sector-bars');
+  if (sectorBarsEl && data.sector_allocations) {
+    sectorBarsEl.innerHTML = data.sector_allocations.map(s => {
+      const color = s.color || 'var(--accent)';
+      return `
+        <div style="display:flex; flex-direction:column; gap:3px;">
+          <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
+            <span style="font-weight:600; display:flex; align-items:center; gap:6px;">
+              <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${color};"></span>
+              ${s.sector} <span style="font-size:0.75rem; color:var(--text-muted); font-weight:normal;">(${s.tickers.join(', ')})</span>
+            </span>
+            <span><b>${s.weight_pct.toFixed(1)}%</b> <span style="font-size:0.75rem; color:var(--text-muted);">(KES ${s.value.toLocaleString('en-KE', {minimumFractionDigits: 2})})</span></span>
+          </div>
+          <div style="height:6px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden;">
+            <div style="height:100%; width:${Math.min(100, Math.max(2, s.weight_pct))}%; background:${color}; border-radius:3px; transition:width 0.4s ease;"></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // 3. Asset Correlation Heatmap
+  const assetHeatmapWrap = document.getElementById('div-asset-heatmap-wrap');
+  if (assetHeatmapWrap && data.asset_correlation) {
+    assetHeatmapWrap.innerHTML = generateHeatmapTableHtml(
+      data.asset_correlation.tickers,
+      data.asset_correlation.matrix
+    );
+  }
+
+  // 4. Sector Correlation Heatmap
+  const sectorHeatmapWrap = document.getElementById('div-sector-heatmap-wrap');
+  if (sectorHeatmapWrap && data.sector_correlation) {
+    sectorHeatmapWrap.innerHTML = generateHeatmapTableHtml(
+      data.sector_correlation.sectors,
+      data.sector_correlation.matrix
+    );
+  }
+
+  // 5. Macro & Risk Insights
+  const listEl = document.getElementById('div-insights-list');
+  if (listEl) {
+    if (data.risk_insights && data.risk_insights.length > 0) {
+      listEl.innerHTML = data.risk_insights.map(i => `<li>${i}</li>`).join('');
+    } else {
+      listEl.innerHTML = '<li>Portfolio exhibits standard market behavior with balanced diversification.</li>';
+    }
+  }
+}
+
+function generateHeatmapTableHtml(labels, matrix) {
+  if (!labels || !labels.length || !matrix || !matrix.length) {
+    return '<div style="color:var(--text-muted); font-size:0.8rem; padding:0.5rem;">Insufficient historical data for correlation matrix.</div>';
+  }
+
+  const thCols = labels.map(l => `<th style="padding:6px 10px; font-size:0.75rem; text-align:center; color:var(--text-muted); border-bottom:1px solid var(--border-color);">${l}</th>`).join('');
+
+  const rows = labels.map((rowLabel, i) => {
+    const cells = labels.map((colLabel, j) => {
+      const val = matrix[i] && matrix[i][j] !== undefined ? matrix[i][j] : 0.0;
+      let bg = 'rgba(255, 255, 255, 0.04)';
+      let textColor = '#e0e0e0';
+
+      if (i === j) {
+        bg = 'rgba(124, 77, 255, 0.18)';
+        textColor = 'var(--accent)';
+      } else if (val >= 0.70) {
+        bg = 'rgba(255, 82, 82, 0.35)';
+        textColor = '#ff5252';
+      } else if (val >= 0.30) {
+        bg = 'rgba(255, 215, 0, 0.22)';
+        textColor = '#ffd700';
+      } else if (val <= 0.20) {
+        bg = 'rgba(0, 230, 118, 0.22)';
+        textColor = '#00e676';
+      }
+
+      const tooltip = `${rowLabel} vs ${colLabel}: Correlation = ${val.toFixed(2)}`;
+      return `
+        <td style="padding:6px 10px; text-align:center; font-size:0.75rem; font-family:var(--font-mono); background:${bg}; color:${textColor}; border:1px solid rgba(255,255,255,0.03);" title="${tooltip}">
+          ${val.toFixed(2)}
+        </td>
+      `;
+    }).join('');
+
+    return `
+      <tr>
+        <td style="padding:6px 10px; font-size:0.75rem; font-weight:600; color:var(--text-muted); text-align:right; border-right:1px solid var(--border-color); white-space:nowrap;">
+          ${rowLabel}
+        </td>
+        ${cells}
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <table style="width:100%; border-collapse:collapse;">
+      <thead>
+        <tr>
+          <th style="padding:6px 10px; font-size:0.72rem; color:var(--text-muted); border-bottom:1px solid var(--border-color); text-align:right;"></th>
+          ${thCols}
+        </tr>
+      </thead>
+      <tbody>
+        ${rows}
+      </tbody>
+    </table>
+  `;
+}
+
+// ── Macro Yield Comparison Modal ──────────────────────────────────────────
+async function openMacroYieldModal() {
+  const modal = document.getElementById('macro-yield-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+
+  const tbody = document.getElementById('modal-macro-stocks-tbody');
+  if (tbody) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:1.5rem; color:var(--text-muted);">Loading live yield comparison from CBK & NSE…</td></tr>';
+  }
+
+  const data = await api.getMacroYieldComparison();
+  if (!data) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:1.5rem; color:#ff4f4f;">Failed to load macro benchmarks.</td></tr>';
+    return;
+  }
+
+  // Populate KPIs
+  const bm = data.benchmarks;
+  if (bm) {
+    const t91 = document.getElementById('modal-tbill-91d');
+    const t182 = document.getElementById('modal-tbill-182d');
+    const t364 = document.getElementById('modal-tbill-364d');
+    if (t91) t91.textContent = bm.tbill_91d.toFixed(2) + '%';
+    if (t182) t182.textContent = bm.tbill_182d.toFixed(2) + '%';
+    if (t364) t364.textContent = bm.tbill_364d.toFixed(2) + '%';
+  }
+
+  const stats = data.market_stats;
+  if (stats) {
+    const avgDiv = document.getElementById('modal-avg-div-yield');
+    const payerDiv = document.getElementById('modal-payer-div-yield');
+    if (avgDiv) avgDiv.textContent = stats.average_market_dividend_yield.toFixed(2) + '%';
+    if (payerDiv) payerDiv.textContent = `Payers: ${stats.average_payer_dividend_yield.toFixed(2)}% (${stats.dividend_paying_stocks} stocks)`;
+  }
+
+  // Populate Insights
+  const insightsEl = document.getElementById('modal-macro-insights');
+  if (insightsEl && data.macro_insights) {
+    insightsEl.innerHTML = data.macro_insights.map(i => `<div style="margin-bottom:4px;">${i}</div>`).join('');
+  }
+
+  // Populate Table
+  if (tbody && data.stocks) {
+    tbody.innerHTML = data.stocks.map(s => {
+      const isTop = s.gross_dividend_yield >= 10.0;
+      const isHealthy = s.gross_dividend_yield >= 5.0;
+      const yieldColor = isTop ? '#00e676' : (isHealthy ? 'var(--accent)' : (s.gross_dividend_yield > 0 ? '#fff' : 'var(--text-muted)'));
+      const spreadColor = s.net_yield_spread >= 0 ? '#00e676' : (s.net_yield_spread >= -5.0 ? '#ffd700' : 'var(--text-muted)');
+      
+      return `
+        <tr onclick="jumpToStock('${s.ticker}'); document.getElementById('macro-yield-modal').style.display='none';" style="cursor:pointer;">
+          <td style="font-weight:700; color:#fff;">${s.ticker}</td>
+          <td style="color:var(--text-muted); font-size:0.75rem;">${s.sector}</td>
+          <td style="font-family:var(--font-mono);">KES ${s.current_price.toFixed(2)}</td>
+          <td style="font-family:var(--font-mono);">${s.dividend_per_share > 0 ? 'KES ' + s.dividend_per_share.toFixed(2) : '—'}</td>
+          <td style="font-family:var(--font-mono); font-weight:700; color:${yieldColor};">${s.gross_dividend_yield.toFixed(2)}%</td>
+          <td style="font-family:var(--font-mono); color:${yieldColor};">${s.net_dividend_yield.toFixed(2)}%</td>
+          <td style="font-family:var(--font-mono); color:${spreadColor}; font-weight:600;">${s.net_yield_spread >= 0 ? '+' : ''}${s.net_yield_spread.toFixed(2)}%</td>
+          <td style="font-family:var(--font-mono); color:var(--text-primary);">+${s.required_growth_hurdle.toFixed(2)}%/yr</td>
+          <td>
+            <span style="font-size:0.72rem; padding:2px 8px; border-radius:10px; background:${s.verdict_color}22; color:${s.verdict_color}; border:1px solid ${s.verdict_color}55;">
+              ${s.verdict_badge}
+            </span>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+}
+
+// ── Portfolio Macro Yield vs T-Bill ───────────────────────────────────────
+let isPortfolioMacroOpen = false;
+
+async function togglePortfolioMacroAnalytics() {
+  const panel = document.getElementById('portfolio-macro-panel');
+  if (!panel) return;
+
+  if (isPortfolioMacroOpen) {
+    panel.style.display = 'none';
+    isPortfolioMacroOpen = false;
+    return;
+  }
+
+  // Close diversification panel if open so they don't crowd the screen
+  const divPanel = document.getElementById('portfolio-diversification-panel');
+  if (divPanel) divPanel.style.display = 'none';
+  isDiversificationOpen = false;
+
+  panel.style.display = 'block';
+  isPortfolioMacroOpen = true;
+
+  const data = await api.getPortfolioMacro();
+  if (data) {
+    renderPortfolioMacroAnalytics(data);
+  }
+}
+
+function renderPortfolioMacroAnalytics(data) {
+  const emptyStateEl = document.getElementById('port-macro-empty-state');
+  const activeContentEl = document.getElementById('port-macro-active-content');
+  const badgeEl = document.getElementById('port-macro-badge');
+
+  if (!data || data.has_holdings === false || !data.holding_breakdown || data.holding_breakdown.length === 0) {
+    if (emptyStateEl) emptyStateEl.style.display = 'block';
+    if (activeContentEl) activeContentEl.style.display = 'none';
+    if (badgeEl) {
+      badgeEl.textContent = '⚪ No Holdings Recorded';
+      badgeEl.style.color = 'var(--text-muted)';
+      badgeEl.style.borderColor = 'rgba(255,255,255,0.15)';
+      badgeEl.style.background = 'rgba(255,255,255,0.04)';
+    }
+    return;
+  }
+
+  if (emptyStateEl) emptyStateEl.style.display = 'none';
+  if (activeContentEl) activeContentEl.style.display = 'block';
+
+  // Badge
+  if (badgeEl) {
+    badgeEl.textContent = data.macro_badge;
+    badgeEl.style.color = data.macro_color || 'var(--accent)';
+    badgeEl.style.borderColor = `${data.macro_color || 'var(--accent)'}55`;
+    badgeEl.style.background = `${data.macro_color || 'var(--accent)'}22`;
+  }
+
+  // KPIs
+  const yEl = document.getElementById('port-macro-weighted-yield');
+  const nyEl = document.getElementById('port-macro-net-yield');
+  const trEl = document.getElementById('port-macro-tbill-rate');
+  const tnEl = document.getElementById('port-macro-tbill-net');
+  const edEl = document.getElementById('port-macro-expected-divs');
+  const ndEl = document.getElementById('port-macro-net-divs');
+  const ghEl = document.getElementById('port-macro-growth-hurdle');
+  const advEl = document.getElementById('port-macro-advisory-text');
+
+  if (yEl) yEl.textContent = data.portfolio_dividend_yield.toFixed(2) + '%';
+  if (nyEl) nyEl.textContent = `Net (5% WHT): ${data.portfolio_net_dividend_yield.toFixed(2)}%`;
+  if (trEl) trEl.textContent = data.tbill_91d_rate.toFixed(2) + '%';
+  if (tnEl) tnEl.textContent = `Net (15% WHT): ${data.net_tbill_91d_rate.toFixed(2)}%`;
+  if (edEl) edEl.textContent = 'KES ' + data.expected_annual_dividends.toLocaleString('en-KE', {minimumFractionDigits: 2});
+  if (ndEl) ndEl.textContent = 'Net cash: KES ' + data.expected_net_annual_dividends.toLocaleString('en-KE', {minimumFractionDigits: 2});
+  if (ghEl) ghEl.textContent = '+' + data.required_portfolio_growth.toFixed(2) + '%/yr';
+  if (advEl) advEl.innerHTML = data.macro_advisory;
+
+  // Breakdown Table
+  const tbody = document.getElementById('port-macro-holdings-tbody');
+  if (tbody && data.holding_breakdown) {
+    tbody.innerHTML = data.holding_breakdown.map(h => `
+      <tr>
+        <td style="font-weight:700; color:#fff; cursor:pointer;" onclick="jumpToStock('${h.ticker}')">${h.ticker}</td>
+        <td>${h.weight_pct.toFixed(1)}%</td>
+        <td style="font-family:var(--font-mono);">KES ${h.market_value.toLocaleString('en-KE', {minimumFractionDigits: 2})}</td>
+        <td style="font-family:var(--font-mono);">${h.dividend_per_share > 0 ? 'KES ' + h.dividend_per_share.toFixed(2) : '—'}</td>
+        <td style="font-family:var(--font-mono); font-weight:600; color:${h.dividend_yield >= 6 ? 'var(--accent)' : 'inherit'};">${h.dividend_yield.toFixed(2)}%</td>
+        <td style="font-family:var(--font-mono);">${h.net_dividend_yield.toFixed(2)}%</td>
+        <td style="font-family:var(--font-mono); font-weight:600; color:#00e676;">KES ${h.annual_dividends.toLocaleString('en-KE', {minimumFractionDigits: 2})}</td>
+      </tr>
+    `).join('');
+  }
+}
+
 
 

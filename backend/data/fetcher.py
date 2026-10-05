@@ -289,12 +289,18 @@ def _fetch_single_stock(ticker: str, meta: dict) -> Optional[dict]:
         rng = _seeded_rng(ticker)
         high_val = round(max(price, open_val) * rng.uniform(1.001, 1.01), 2)
         low_val = round(min(price, open_val) * rng.uniform(0.990, 0.999), 2)
+        dps = float(meta.get("dividend_per_share", 0.0))
+        div_yield = round((dps / price) * 100, 2) if price > 0 else 0.0
         return {
             "ticker": ticker, "name": meta["name"], "sector": meta["sector"],
             "open": open_val, "high": high_val, "low": low_val,
             "currency": "KES",
             "shares_outstanding": meta.get("shares_outstanding", 500_000_000),
             "free_float_pct": meta.get("free_float_pct", 35.0),
+            "dividend_per_share": dps,
+            "dividend_yield": div_yield,
+            "payout_frequency": meta.get("payout_frequency", "Annual" if dps > 0 else "None"),
+            "payout_ratio_pct": meta.get("payout_ratio_pct", 0.0),
             "timestamp": datetime.now(NAIROBI_TZ).isoformat(),
             **{k: scraped[k] for k in ("price", "change", "change_pct", "volume", "data_source")},
         }
@@ -418,6 +424,8 @@ def _fallback_stock(ticker: str, meta: dict) -> dict:
     prev    = history[-2]["close"] if len(history) >= 2 else price
     change  = round(price - prev, 2)
     change_pct = round((change / prev) * 100, 2) if prev else 0.0
+    dps = float(meta.get("dividend_per_share", 0.0))
+    div_yield = round((dps / price) * 100, 2) if price > 0 else 0.0
     return {
         "ticker": ticker, "name": meta["name"], "sector": meta["sector"],
         "price":  round(price, 2), "open": round(prev, 2),
@@ -428,6 +436,10 @@ def _fallback_stock(ticker: str, meta: dict) -> dict:
         "currency": "KES",
         "shares_outstanding": meta.get("shares_outstanding", 500_000_000),
         "free_float_pct": meta.get("free_float_pct", 35.0),
+        "dividend_per_share": dps,
+        "dividend_yield": div_yield,
+        "payout_frequency": meta.get("payout_frequency", "Annual" if dps > 0 else "None"),
+        "payout_ratio_pct": meta.get("payout_ratio_pct", 0.0),
         "data_source": "estimated",
         "data_as_of":  None,
         "timestamp":   datetime.now(NAIROBI_TZ).isoformat(),

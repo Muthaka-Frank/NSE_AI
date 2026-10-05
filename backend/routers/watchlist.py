@@ -212,3 +212,25 @@ def get_portfolio_optimization(current_user: User = Depends(get_current_user), d
     result = optimize_portfolio(tickers)
     return result
 
+@router.get("/portfolio/diversification")
+def get_portfolio_diversification_endpoint(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """
+    Computes portfolio diversification metrics, sector exposures,
+    Herfindahl-Hirschman Index (HHI), and asset/sector correlation matrices.
+    """
+    items = db.query(PortfolioItem).filter(PortfolioItem.user_id == current_user.id).all()
+    holdings = []
+    for item in items:
+        ticker = item.ticker.upper().strip()
+        live_data = get_price(ticker)
+        current_price = live_data.get("price") if live_data else item.buy_price
+        holdings.append({
+            "ticker": ticker,
+            "quantity": item.quantity,
+            "buy_price": item.buy_price,
+            "current_price": current_price
+        })
+
+    from ml.diversification import compute_portfolio_diversification
+    return compute_portfolio_diversification(holdings, db)
+

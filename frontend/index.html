@@ -77,6 +77,25 @@
         <div class="overview-card skeleton"></div>
         <div class="overview-card skeleton"></div>
       </div>
+
+      <!-- CBK Macro Benchmark Bar -->
+      <div id="cbk-macro-bar" style="margin-top:1rem; padding:0.85rem 1.2rem; background:rgba(255,255,255,0.02); border:1px solid var(--border-color); border-radius:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.8rem;">
+        <div style="display:flex; align-items:center; gap:0.8rem; flex-wrap:wrap;">
+          <span style="font-size:0.85rem; font-weight:700; color:#fff; display:flex; align-items:center; gap:6px;">
+            <span>🏛️</span> CBK Risk-Free Benchmarks:
+          </span>
+          <div style="display:flex; gap:1.2rem; font-size:0.8rem; flex-wrap:wrap;">
+            <span>91-Day T-Bill: <strong id="macro-tbill-91d" style="color:var(--accent); font-family:var(--font-mono);">15.68%</strong> <span style="font-size:0.72rem; color:var(--text-muted);">(Net: <span id="macro-net-91d">13.33%</span>)</span></span>
+            <span>182-Day: <strong id="macro-tbill-182d" style="font-family:var(--font-mono); color:#fff;">16.42%</strong></span>
+            <span>364-Day: <strong id="macro-tbill-364d" style="font-family:var(--font-mono); color:#fff;">16.65%</strong></span>
+            <span>CBR Rate: <strong id="macro-cbr" style="font-family:var(--font-mono); color:#ffb74d;">12.75%</strong></span>
+            <span>Inflation: <strong id="macro-inflation" style="font-family:var(--font-mono); color:#00e676;">4.40%</strong> <span style="font-size:0.72rem; color:var(--text-muted);">(Real Rf: <span id="macro-real-rf">+11.28%</span>)</span></span>
+          </div>
+        </div>
+        <button onclick="openMacroYieldModal()" style="padding:0.4rem 0.85rem; font-size:0.8rem; font-weight:600; background:rgba(124, 77, 255, 0.15); border:1px solid rgba(124, 77, 255, 0.4); color:var(--accent); border-radius:6px; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.2s;">
+          <span>⚖️</span> Compare CBK vs Stock Yields
+        </button>
+      </div>
     </section>
 
     <!-- AI Recommendations -->
@@ -175,9 +194,11 @@
       <div class="chart-panel" style="flex: 2; min-width: 320px;">
         <div class="section-header">
           <h2 class="section-title">My Portfolio Holdings</h2>
-          <div style="display:flex; gap:0.5rem;">
+          <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
             <button class="btn-primary" id="btn-show-buy-modal" onclick="document.getElementById('buy-modal').style.display='flex'" style="padding:0.4rem 0.8rem; font-size:0.85rem; border-radius:6px; cursor:pointer;">+ Record Purchase</button>
             <button class="btn-primary" id="btn-optimize-portfolio" onclick="runPortfolioOptimization()" style="background:var(--accent); border-color:var(--accent); padding:0.4rem 0.8rem; font-size:0.85rem; border-radius:6px; cursor:pointer;">📊 AI Optimize</button>
+            <button class="btn-primary" id="btn-diversification" onclick="toggleDiversificationAnalytics()" style="background:rgba(255, 255, 255, 0.08); border:1px solid var(--border-color); padding:0.4rem 0.8rem; font-size:0.85rem; border-radius:6px; cursor:pointer; color:#fff;">🧭 Diversification & Heatmap</button>
+            <button class="btn-primary" id="btn-portfolio-macro" onclick="togglePortfolioMacroAnalytics()" style="background:rgba(255, 255, 255, 0.08); border:1px solid var(--border-color); padding:0.4rem 0.8rem; font-size:0.85rem; border-radius:6px; cursor:pointer; color:#fff;">🏛️ Macro Yield vs T-Bill</button>
           </div>
         </div>
         <div class="portfolio-optimize-bar" id="portfolio-optimizer-results" style="display:none; margin-top:1rem; padding:1.2rem; background:rgba(124, 77, 255, 0.05); border-radius:8px; border:1px solid var(--accent); transition: all 0.3s ease;">
@@ -189,6 +210,153 @@
             <div><span style="color:var(--text-muted);">Expected Return:</span> <strong id="opt-expected-return">--</strong></div>
             <div><span style="color:var(--text-muted);">Expected Volatility:</span> <strong id="opt-expected-vol">--</strong></div>
             <div><span style="color:var(--text-muted);">Sharpe Ratio:</span> <strong id="opt-sharpe-ratio">--</strong></div>
+          </div>
+        </div>
+        <!-- Portfolio Diversification & Sector Covariance/Correlation Heatmap -->
+        <div class="portfolio-diversification-panel" id="portfolio-diversification-panel" style="display:none; margin-top:1rem; padding:1.2rem; background:rgba(255, 255, 255, 0.02); border-radius:8px; border:1px solid var(--border-color); transition: all 0.3s ease;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.8rem; border-bottom:1px solid var(--border-color); padding-bottom:0.8rem; margin-bottom:1rem;">
+            <h3 style="font-size:1.05rem; margin:0; display:flex; align-items:center; gap:8px; color:#fff;">
+              <span>🧭</span> Portfolio Diversification & Correlation Heatmap
+            </h3>
+            <div id="div-hhi-badge" style="display:inline-flex; align-items:center; gap:6px; font-size:0.82rem; padding:0.25rem 0.65rem; border-radius:12px; font-weight:600; background:rgba(0,230,118,0.15); color:#00e676; border:1px solid rgba(0,230,118,0.3);">
+              🟢 HHI: 0.00 (Well Diversified)
+            </div>
+          </div>
+
+          <!-- Empty State (when user has 0 holdings) -->
+          <div id="div-empty-state" style="display:none; text-align:center; padding:2rem 1rem; color:var(--text-muted);">
+            <div style="font-size:2.6rem; margin-bottom:0.8rem;">🧭</div>
+            <h4 style="color:#fff; margin-bottom:0.5rem; font-size:1.1rem;">No Portfolio Holdings Recorded</h4>
+            <p style="font-size:0.85rem; max-width:440px; margin:0 auto 1.4rem; line-height:1.5; color:var(--text-muted);">
+              You haven't recorded any stock purchases yet. Once you add shares to your portfolio, this dashboard will automatically generate your sector allocation, HHI concentration risk score, and real-time cross-asset correlation heatmaps.
+            </p>
+            <button class="btn-primary" onclick="document.getElementById('buy-modal').style.display='flex'" style="padding:0.5rem 1.2rem; font-size:0.85rem; border-radius:6px; cursor:pointer;">+ Record First Purchase</button>
+          </div>
+
+          <!-- Active Content (when user has holdings) -->
+          <div id="div-active-content">
+            <!-- Diversification Summary KPIs -->
+            <div style="display:flex; flex-wrap:wrap; gap:1.5rem; margin-bottom:1.2rem; font-size:0.82rem;">
+              <div><span style="color:var(--text-muted);">Sector HHI Concentration:</span> <strong id="div-sector-hhi" style="font-family:var(--font-mono); color:#fff;">--</strong></div>
+              <div><span style="color:var(--text-muted);">Effective Sectors (Neff):</span> <strong id="div-eff-sectors" style="font-family:var(--font-mono); color:var(--accent);">--</strong></div>
+              <div><span style="color:var(--text-muted);">Effective Assets (Neff):</span> <strong id="div-eff-assets" style="font-family:var(--font-mono); color:var(--accent);">--</strong></div>
+            </div>
+
+            <!-- Sector Allocation Exposure Breakdown -->
+            <div style="margin-bottom:1.5rem;">
+              <div style="font-size:0.85rem; font-weight:600; color:var(--text-muted); margin-bottom:0.6rem; text-transform:uppercase; letter-spacing:0.5px;">Sector Exposure Breakdown</div>
+              <div id="div-sector-bars" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
+            </div>
+
+            <!-- Pairwise Asset Correlation Heatmap -->
+            <div style="margin-bottom:1.5rem;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem;">
+                <div style="font-size:0.85rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">
+                  Asset Correlation Matrix (ρ ∈ [-1.0, +1.0])
+                </div>
+                <div style="display:flex; gap:0.8rem; font-size:0.75rem; color:var(--text-muted);">
+                  <span><span style="display:inline-block; width:10px; height:10px; background:#ff5252; border-radius:2px; margin-right:3px;"></span> High (≥0.70)</span>
+                  <span><span style="display:inline-block; width:10px; height:10px; background:#ffd700; border-radius:2px; margin-right:3px;"></span> Moderate</span>
+                  <span><span style="display:inline-block; width:10px; height:10px; background:#00e676; border-radius:2px; margin-right:3px;"></span> Low (≤0.20)</span>
+                </div>
+              </div>
+              <div id="div-asset-heatmap-wrap" style="overflow-x:auto; background:rgba(0,0,0,0.25); border-radius:8px; padding:0.8rem; border:1px solid var(--border-color);"></div>
+            </div>
+
+            <!-- Sector-to-Sector Correlation Grid -->
+            <div style="margin-bottom:1.5rem;">
+              <div style="font-size:0.85rem; font-weight:600; color:var(--text-muted); margin-bottom:0.6rem; text-transform:uppercase; letter-spacing:0.5px;">
+                Cross-Sector Correlation Matrix
+              </div>
+              <div id="div-sector-heatmap-wrap" style="overflow-x:auto; background:rgba(0,0,0,0.25); border-radius:8px; padding:0.8rem; border:1px solid var(--border-color);"></div>
+            </div>
+
+            <!-- Actionable Risk & Macro Insights -->
+            <div style="background:rgba(124, 77, 255, 0.05); border:1px solid rgba(124, 77, 255, 0.2); border-radius:8px; padding:0.85rem;">
+              <div style="font-size:0.82rem; font-weight:600; color:var(--accent); margin-bottom:0.4rem; display:flex; align-items:center; gap:6px;">
+                <span>💡</span> NSE Macro Diversification Advisory
+              </div>
+              <ul id="div-insights-list" style="margin:0; padding-left:1.2rem; font-size:0.8rem; color:var(--text-muted); display:flex; flex-direction:column; gap:0.35rem;">
+                <li>Loading portfolio diversification intelligence…</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <!-- Portfolio Macro Yield vs CBK T-Bill Panel -->
+        <div class="portfolio-macro-panel" id="portfolio-macro-panel" style="display:none; margin-top:1rem; padding:1.2rem; background:rgba(255, 255, 255, 0.02); border-radius:8px; border:1px solid var(--border-color); transition: all 0.3s ease;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.8rem; border-bottom:1px solid var(--border-color); padding-bottom:0.8rem; margin-bottom:1rem;">
+            <h3 style="font-size:1.05rem; margin:0; display:flex; align-items:center; gap:8px; color:#fff;">
+              <span>🏛️</span> Portfolio Dividend Yield vs CBK 91-Day T-Bill
+            </h3>
+            <div id="port-macro-badge" style="display:inline-flex; align-items:center; gap:6px; font-size:0.82rem; padding:0.25rem 0.65rem; border-radius:12px; font-weight:600; background:rgba(0,230,118,0.15); color:#00e676; border:1px solid rgba(0,230,118,0.3);">
+              Calculating…
+            </div>
+          </div>
+
+          <!-- Empty State (when user has 0 holdings) -->
+          <div id="port-macro-empty-state" style="display:none; text-align:center; padding:2rem 1rem; color:var(--text-muted);">
+            <div style="font-size:2.6rem; margin-bottom:0.8rem;">🏛️</div>
+            <h4 style="color:#fff; margin-bottom:0.5rem; font-size:1.1rem;">No Portfolio Holdings Recorded</h4>
+            <p style="font-size:0.85rem; max-width:440px; margin:0 auto 1.4rem; line-height:1.5; color:var(--text-muted);">
+              Add stock holdings to calculate your portfolio's weighted dividend cash yield, expected annual payout, and contrast your earnings against guaranteed risk-free Central Bank of Kenya (CBK) Treasury Bills.
+            </p>
+            <button class="btn-primary" onclick="document.getElementById('buy-modal').style.display='flex'" style="padding:0.5rem 1.2rem; font-size:0.85rem; border-radius:6px; cursor:pointer;">+ Record First Purchase</button>
+          </div>
+
+          <!-- Active Content (when holdings exist) -->
+          <div id="port-macro-active-content">
+            <div style="display:flex; flex-wrap:wrap; gap:1.2rem; margin-bottom:1.2rem; font-size:0.82rem;">
+              <div style="flex:1; min-width:140px; background:rgba(255,255,255,0.03); padding:0.75rem; border-radius:6px; border:1px solid var(--border-color);">
+                <div style="color:var(--text-muted); font-size:0.75rem;">Weighted Dividend Yield</div>
+                <div id="port-macro-weighted-yield" style="font-size:1.15rem; font-weight:700; color:var(--accent); font-family:var(--font-mono); margin-top:3px;">--</div>
+                <div id="port-macro-net-yield" style="font-size:0.72rem; color:var(--text-muted); margin-top:2px;">Net (5% WHT): --</div>
+              </div>
+              <div style="flex:1; min-width:140px; background:rgba(255,255,255,0.03); padding:0.75rem; border-radius:6px; border:1px solid var(--border-color);">
+                <div style="color:var(--text-muted); font-size:0.75rem;">CBK 91-Day T-Bill (Rf)</div>
+                <div id="port-macro-tbill-rate" style="font-size:1.15rem; font-weight:700; color:#fff; font-family:var(--font-mono); margin-top:3px;">15.68%</div>
+                <div id="port-macro-tbill-net" style="font-size:0.72rem; color:var(--text-muted); margin-top:2px;">Net (15% WHT): 13.33%</div>
+              </div>
+              <div style="flex:1; min-width:140px; background:rgba(255,255,255,0.03); padding:0.75rem; border-radius:6px; border:1px solid var(--border-color);">
+                <div style="color:var(--text-muted); font-size:0.75rem;">Expected Annual Dividends</div>
+                <div id="port-macro-expected-divs" style="font-size:1.15rem; font-weight:700; color:#00e676; font-family:var(--font-mono); margin-top:3px;">KES 0.00</div>
+                <div id="port-macro-net-divs" style="font-size:0.72rem; color:var(--text-muted); margin-top:2px;">Net cash: KES 0.00</div>
+              </div>
+              <div style="flex:1; min-width:140px; background:rgba(255,255,255,0.03); padding:0.75rem; border-radius:6px; border:1px solid var(--border-color);">
+                <div style="color:var(--text-muted); font-size:0.75rem;">Required Growth Hurdle</div>
+                <div id="port-macro-growth-hurdle" style="font-size:1.15rem; font-weight:700; color:#ffb74d; font-family:var(--font-mono); margin-top:3px;">--</div>
+                <div style="font-size:0.72rem; color:var(--text-muted); margin-top:2px;">Annual price gain to beat T-Bill</div>
+              </div>
+            </div>
+
+            <!-- Macro Advisory Box -->
+            <div style="background:rgba(124, 77, 255, 0.06); border:1px solid rgba(124, 77, 255, 0.25); border-radius:8px; padding:0.85rem; margin-bottom:1.2rem;">
+              <div style="font-size:0.82rem; font-weight:600; color:var(--accent); margin-bottom:0.35rem; display:flex; align-items:center; gap:6px;">
+                <span>💡</span> Opportunity Cost & Strategy Evaluation
+              </div>
+              <div id="port-macro-advisory-text" style="font-size:0.82rem; color:#e0e0e0; line-height:1.45;">
+                Loading macro comparison…
+              </div>
+            </div>
+
+            <!-- Holdings Dividend Breakdown Table -->
+            <div style="overflow-x:auto;">
+              <table class="stocks-table" style="margin-bottom:0; font-size:0.8rem;">
+                <thead>
+                  <tr>
+                    <th>Ticker</th>
+                    <th>Weight</th>
+                    <th>Market Value</th>
+                    <th>DPS (KES)</th>
+                    <th>Gross Yield</th>
+                    <th>Net Yield (5% WHT)</th>
+                    <th>Annual Payout</th>
+                  </tr>
+                </thead>
+                <tbody id="port-macro-holdings-tbody">
+                  <tr><td colspan="7" style="text-align:center; padding:1rem; color:var(--text-muted);">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
         <div class="portfolio-summary-bar" id="portfolio-summary" style="display:flex; flex-wrap:wrap; gap:1.2rem; margin-top:1rem; padding:1rem; background:rgba(255,255,255,0.02); border-radius:8px; border:1px solid var(--border-color);">
@@ -226,11 +394,11 @@
           <thead>
             <tr>
               <th>Ticker</th><th>Company</th><th>Sector</th>
-              <th>Price (KES)</th><th>Change</th><th>Volume</th><th>Signal</th>
+              <th>Price (KES)</th><th>Change</th><th>Volume</th><th>Div Yield</th><th>Signal</th>
             </tr>
           </thead>
           <tbody id="stocks-tbody">
-            <tr><td colspan="7" class="table-loading">Loading…</td></tr>
+            <tr><td colspan="8" class="table-loading">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -329,11 +497,76 @@
         </div>
       </div>
     </div>
+  <!-- Macro Yield Comparison Modal (CBK T-Bills vs Stocks) -->
+  <div class="modal" id="macro-yield-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:1000; align-items:center; justify-content:center; backdrop-filter: blur(5px);">
+    <div style="background:var(--bg-card); padding:1.8rem; border-radius:12px; border:1px solid var(--border-color); width:100%; max-width:880px; position:relative; box-shadow: var(--shadow-lg); display: flex; flex-direction: column; max-height: 88vh;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.8rem;">
+        <div>
+          <h3 style="margin:0; color:#fff; font-size:1.3rem; display:flex; align-items:center; gap:8px;">
+            <span>🏛️</span> CBK Risk-Free Benchmark vs NSE Dividend Yields
+          </h3>
+          <p style="margin:4px 0 0 0; font-size:0.8rem; color:var(--text-muted);">
+            Comparing Central Bank 91-Day, 182-Day & 364-Day T-Bills with stock dividends (factoring in 5% equity vs 15% T-bill withholding tax).
+          </p>
+        </div>
+        <button onclick="document.getElementById('macro-yield-modal').style.display='none'" style="background:transparent; border:none; color:var(--text-muted); font-size:1.3rem; cursor:pointer; padding:4px 8px; border-radius:6px;">✕</button>
+      </div>
+
+      <!-- Benchmark Summary KPI Cards -->
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:0.8rem; margin-bottom:1.2rem;">
+        <div style="background:rgba(255,255,255,0.02); padding:0.6rem 0.8rem; border-radius:6px; border:1px solid var(--border-color);">
+          <div style="font-size:0.72rem; color:var(--text-muted);">91-Day T-Bill (Rf)</div>
+          <div id="modal-tbill-91d" style="font-size:1.1rem; font-weight:700; color:var(--accent); font-family:var(--font-mono);">15.68%</div>
+          <div style="font-size:0.68rem; color:var(--text-muted);">Net: 13.33% (15% WHT)</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.02); padding:0.6rem 0.8rem; border-radius:6px; border:1px solid var(--border-color);">
+          <div style="font-size:0.72rem; color:var(--text-muted);">182-Day T-Bill</div>
+          <div id="modal-tbill-182d" style="font-size:1.1rem; font-weight:700; color:#fff; font-family:var(--font-mono);">16.42%</div>
+          <div style="font-size:0.68rem; color:var(--text-muted);">Net: 13.96%</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.02); padding:0.6rem 0.8rem; border-radius:6px; border:1px solid var(--border-color);">
+          <div style="font-size:0.72rem; color:var(--text-muted);">364-Day T-Bill</div>
+          <div id="modal-tbill-364d" style="font-size:1.1rem; font-weight:700; color:#fff; font-family:var(--font-mono);">16.65%</div>
+          <div style="font-size:0.68rem; color:var(--text-muted);">Net: 14.15%</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.02); padding:0.6rem 0.8rem; border-radius:6px; border:1px solid var(--border-color);">
+          <div style="font-size:0.72rem; color:var(--text-muted);">NSE Avg Div Yield</div>
+          <div id="modal-avg-div-yield" style="font-size:1.1rem; font-weight:700; color:#00e676; font-family:var(--font-mono);">--</div>
+          <div id="modal-payer-div-yield" style="font-size:0.68rem; color:var(--text-muted);">Payers: --</div>
+        </div>
+      </div>
+
+      <!-- Macro Insights Bullet points -->
+      <div id="modal-macro-insights" style="background:rgba(124, 77, 255, 0.05); border:1px solid rgba(124, 77, 255, 0.2); border-radius:6px; padding:0.75rem 1rem; margin-bottom:1rem; font-size:0.8rem; line-height:1.45;">
+      </div>
+
+      <!-- Scrollable Table -->
+      <div style="flex:1; overflow-y:auto; border:1px solid var(--border-color); border-radius:6px;">
+        <table class="stocks-table" style="margin-bottom:0; font-size:0.82rem; width:100%;">
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Sector</th>
+              <th>Price</th>
+              <th>DPS</th>
+              <th>Gross Yield</th>
+              <th>Net Yield (5% WHT)</th>
+              <th>Spread vs 91d T-Bill</th>
+              <th>Required Capital Growth</th>
+              <th>Macro Status</th>
+            </tr>
+          </thead>
+          <tbody id="modal-macro-stocks-tbody">
+            <tr><td colspan="9" style="text-align:center; padding:1.5rem; color:var(--text-muted);">Loading yield rankings…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
-  <script src="js/api.js?v=4"></script>
+  <script src="js/api.js?v=5"></script>
   <script src="js/chart.js?v=3"></script>
-  <script src="js/app.js?v=15"></script>
+  <script src="js/app.js?v=16"></script>
   <script>
     // Register PWA service worker
     if ("serviceWorker" in navigator) {

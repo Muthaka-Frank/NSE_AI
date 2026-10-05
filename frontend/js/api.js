@@ -74,12 +74,29 @@ const api = {
   async addToWatchlist(ticker) { return this.post('/api/watchlist', { ticker }); },
   async removeFromWatchlist(ticker) { return this.delete(`/api/watchlist/${ticker}`); },
   async getPortfolio()         { return this.get('/api/portfolio'); },
-  async addToPortfolio(ticker, buy_price, quantity) { return this.post('/api/portfolio', { ticker, buy_price, quantity }); },
-  async removeFromPortfolio(id) { return this.delete(`/api/portfolio/${id}`); }
+  async getPortfolioDiversification() { return this.get('/api/portfolio/diversification'); },
+  async removeFromPortfolio(id) { return this.delete(`/api/portfolio/${id}`); },
+
+  // Macro Benchmarks & Dividend Yields
+  async getMacroBenchmarks()      { return this.get('/api/macro/benchmarks'); },
+  async getMacroYieldComparison() { return this.get('/api/macro/yield-comparison'); },
+  async getStockMacro(ticker)     { return this.get(`/api/macro/stock/${ticker}`); },
+  async getPortfolioMacro()       { return this.get('/api/macro/portfolio'); }
 };
 
 // ── Mock data (fallback when backend is offline) ───────────────────────────
 const MOCK = {
+  macroBenchmarks: {
+    tbill_91d: 15.68,
+    tbill_182d: 16.42,
+    tbill_364d: 16.65,
+    cbr_rate: 12.75,
+    inflation_rate: 4.40,
+    net_tbill_91d: 13.33,
+    real_risk_free_rate: 11.28,
+    wht_tbill_pct: 15.0,
+    wht_equity_resident_pct: 5.0,
+  },
   stocks: [
     { ticker:'SCOM', name:'Safaricom PLC',         sector:'Telecommunications', price:19.80, change:0.40,  change_pct:2.06,  volume:4200000 },
     { ticker:'EQTY', name:'Equity Group Holdings',  sector:'Banking',           price:52.25, change:-0.75, change_pct:-1.42, volume:1800000 },

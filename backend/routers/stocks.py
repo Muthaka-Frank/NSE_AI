@@ -77,6 +77,16 @@ def stock_detail(ticker: str):
     except Exception as e:
         info_copy["liquidity"] = None
 
+    try:
+        from ml.macro import compute_stock_macro_profile
+        info_copy["macro"] = compute_stock_macro_profile(
+            ticker.upper(),
+            float(info.get("price", 1.0)),
+            float(info.get("dividend_per_share", 0.0))
+        )
+    except Exception as e:
+        info_copy["macro"] = None
+
     return info_copy
 
 
@@ -209,6 +219,13 @@ def stock_prediction(ticker: str):
         "turnover_velocity_pct": result.turnover_velocity_pct,
         "liquidity_rating": result.liquidity_rating,
         "liquidity_premium_pct": result.liquidity_premium_pct,
+        "breakeven_price": result.breakeven_price,
+        "fee_hurdle_pct":  result.fee_hurdle_pct,
+        "dividend_yield_pct": result.dividend_yield_pct,
+        "tbill_91d_pct": result.tbill_91d_pct,
+        "net_yield_spread_pct": result.net_yield_spread_pct,
+        "required_growth_hurdle_pct": result.required_growth_hurdle_pct,
+        "macro_verdict": result.macro_verdict,
         "reasoning":       result.reasoning,
         "current_price":   info["price"],
         "disclaimer":      "AI signals are informational only. Not financial advice.",
