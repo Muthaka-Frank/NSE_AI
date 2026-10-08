@@ -29,9 +29,13 @@ function bootDashboard() {
     updateChart(currentTicker, currentPeriod);
   } catch(e) { console.warn('chart:', e); }
   try { loadSignal(currentTicker); } catch(e) { console.warn('signal:', e); }
-  try { bindChartControls(); bindTableSearch(); } catch(e) { console.warn('controls:', e); }
+  try {
+    bindChartControls();
+    bindTableSearch();
+    bindWatchlistAndPortfolioEvents();
+  } catch(e) { console.warn('controls:', e); }
 
-  // ── Step 1b: Render cached watchlist and portfolio instantly if available ────
+  // ── Step 1b: Render cached watchlist and portfolio instantly, and fetch fresh ────
   try {
     const cachedWatchlist = localStorage.getItem('nse_watchlist_cache');
     if (cachedWatchlist) {
@@ -44,6 +48,8 @@ function bootDashboard() {
       renderPortfolioFromData(JSON.parse(cachedPortfolio));
     }
   } catch(e) { console.warn('cached portfolio load:', e); }
+  loadWatchlist().catch(e => console.warn('watchlist fetch:', e));
+  loadPortfolio().catch(e => console.warn('portfolio fetch:', e));
 
   // ── Step 2: Load news immediately (fast — not Yahoo Finance) ─────────
   // Try loading cached news first
@@ -813,6 +819,9 @@ async function loadPortfolio() {
   if (isDiversificationOpen) {
     api.getPortfolioDiversification().then(d => d && renderDiversificationAnalytics(d));
   }
+  if (isPortfolioMacroOpen) {
+    api.getPortfolioMacro().then(d => d && renderPortfolioMacroAnalytics(d));
+  }
 }
 
 function renderPortfolioFromData(data) {
@@ -960,40 +969,101 @@ function bindWatchlistAndPortfolioEvents() {
   }
 
   if (btnShowBuy) {
-    btnShowBuy.addEventListener('click', () => {
-      if (tickerSelect && tickerSelect.value && (!priceInput.value || priceInput.value <= 0)) {
-        const found = (allStocks || []).find(s => s.ticker === tickerSelect.value);
-        if (found && found.price) {
-          priceInput.value = found.price;
-        }
-      }
-      updateBuyModalPreview();
-    });
+    btnShowBuy.onclick = () => openBuyModal();
   }
   
   const btnB = document.getElementById('btn-submit-buy');
   if (btnB) {
-    btnB.onclick = async () => {
-      const ticker = document.getElementById('buy-ticker-select').value;
-      const qty = parseInt(document.getElementById('buy-qty-input').value);
-      const price = parseFloat(document.getElementById('buy-price-input').value);
-      
-      if (!ticker || isNaN(qty) || qty <= 0 || isNaN(price) || price <= 0) {
-        alert("Please specify valid quantity and buy price.");
-        return;
-      }
-      
-      const res = await api.addToPortfolio(ticker, price, qty);
-      if (res) {
-        document.getElementById('buy-modal').style.display = 'none';
-        document.getElementById('buy-qty-input').value = '';
-        document.getElementById('buy-price-input').value = '';
-        updateBuyModalPreview();
-        loadPortfolio();
-      }
-    };
+    btnB.onclick = submitBuyHolding;
+  }
+
+  const buyModal = document.getElementById('buy-modal');
+  if (buyModal && !buyModal.dataset.backdropBound) {
+    buyModal.dataset.backdropBound = 'true';
+    buyModal.addEventListener('click', (e) => {
+      if (e.target === buyModal) closeBuyModal();
+    });
   }
 }
+
+function openBuyModal(ticker = null) {
+  const modal = document.getElementById('buy-modal');
+  const tickerSelect = document.getElementById('buy-ticker-select');
+  const priceInput = document.getElementById('buy-price-input');
+  
+  if (ticker && tickerSelect) {
+    tickerSelect.value = ticker;
+  }
+  
+  if (tickerSelect && tickerSelect.value && (!priceInput.value || parseFloat(priceInput.value) <= 0 || ticker)) {
+    const selectedTicker = tickerSelect.value;
+    const found = (allStocks || []).find(s => s.ticker === selectedTicker);
+    if (found && found.price) {
+      if (priceInput) priceInput.value = found.price;
+    }
+  }
+  updateBuyModalPreview();
+  if (modal) modal.style.display = 'flex';
+}
+window.openBuyModal = openBuyModal;
+
+function closeBuyModal() {
+  const modal = document.getElementById('buy-modal');
+  if (modal) modal.style.display = 'none';
+}
+window.closeBuyModal = closeBuyModal;
+
+async function submitBuyHolding() {
+  const btnB = document.getElementById('btn-submit-buy');
+  const tickerSelect = document.getElementById('buy-ticker-select');
+  const qtyInput = document.getElementById('buy-qty-input');
+  const priceInput = document.getElementById('buy-price-input');
+  
+  const ticker = tickerSelect ? tickerSelect.value.trim().toUpperCase() : '';
+  const qty = qtyInput ? parseInt(qtyInput.value, 10) : NaN;
+  const price = priceInput ? parseFloat(priceInput.value) : NaN;
+  
+  if (!ticker) {
+    alert("Please select a stock ticker.");
+    return;
+  }
+  if (isNaN(qty) || qty <= 0) {
+    alert("Please specify a valid share quantity greater than 0.");
+    if (qtyInput) qtyInput.focus();
+    return;
+  }
+  if (isNaN(price) || price <= 0) {
+    alert("Please specify a valid buy price greater than 0.");
+    if (priceInput) priceInput.focus();
+    return;
+  }
+  
+  const originalText = btnB ? btnB.textContent : 'Save Holding';
+  if (btnB) {
+    btnB.disabled = true;
+    btnB.textContent = 'Saving...';
+  }
+  
+  try {
+    const res = await api.addToPortfolio(ticker, price, qty);
+    if (res) {
+      closeBuyModal();
+      if (qtyInput) qtyInput.value = '';
+      if (priceInput) priceInput.value = '';
+      updateBuyModalPreview();
+      await loadPortfolio();
+    }
+  } catch (err) {
+    console.error('Failed to add holding:', err);
+    alert(`Error saving holding: ${err.message || 'Unknown error'}`);
+  } finally {
+    if (btnB) {
+      btnB.disabled = false;
+      btnB.textContent = originalText;
+    }
+  }
+}
+window.submitBuyHolding = submitBuyHolding;
 
 async function removeWatchlist(ticker) {
   const res = await api.removeFromWatchlist(ticker);

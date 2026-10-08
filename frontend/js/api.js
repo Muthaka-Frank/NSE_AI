@@ -74,6 +74,13 @@ const api = {
   async addToWatchlist(ticker) { return this.post('/api/watchlist', { ticker }); },
   async removeFromWatchlist(ticker) { return this.delete(`/api/watchlist/${ticker}`); },
   async getPortfolio()         { return this.get('/api/portfolio'); },
+  async addToPortfolio(ticker, buy_price, quantity) {
+    return this.post('/api/portfolio', {
+      ticker: String(ticker).toUpperCase(),
+      buy_price: parseFloat(buy_price),
+      quantity: parseInt(quantity, 10)
+    });
+  },
   async getPortfolioDiversification() { return this.get('/api/portfolio/diversification'); },
   async removeFromPortfolio(id) { return this.delete(`/api/portfolio/${id}`); },
 
