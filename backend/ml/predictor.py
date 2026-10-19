@@ -423,9 +423,16 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
             bull_signals += 1
             reasons.append(f"Macro Support: Short-term pullback is testing 50-day macro uptrend support (MA50: {ma50:.2f})")
 
+    # ── Key Support & Resistance Pivot Points ──────────────────────────────────
+    pivots = _pivot_points(highs[-1], lows[-1], closes[-1])
+    reasons.append(f"Key Pivot Levels: Pivot {pivots['pivot']}, Support {pivots['s1']}, Resistance {pivots['r1']}")
+
+    # ── Liquidity Profile ───────────────────────────────────────────────────────
+    reasons.append(f"Liquidity Profile ({liq.rating_badge}): Est. Spread {liq.spread_pct:.1f}%, Turnover Velocity {liq.turnover_velocity_monthly_pct:.2f}%/mo.")
+
     total = bull_signals + bear_signals
     if total == 0:
-        return _no_signal(ticker, "No clear technical signals detected.")
+        return _no_signal(ticker, "No clear technical signals detected.", liq=liq, extra_reasons=reasons)
 
     bull_ratio = bull_signals / total
     bear_ratio = bear_signals / total
@@ -433,13 +440,6 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
 
     # Normalise confidence to 0.5–0.99
     confidence = round(min(0.99, 0.50 + (raw_conf - 0.50) * 0.98), 3)
-
-    # ── Key Support & Resistance Pivot Points ──────────────────────────────────
-    pivots = _pivot_points(highs[-1], lows[-1], closes[-1])
-    reasons.append(f"Key Pivot Levels: Pivot {pivots['pivot']}, Support {pivots['s1']}, Resistance {pivots['r1']}")
-
-    # ── Liquidity Profile ───────────────────────────────────────────────────────
-    reasons.append(f"Liquidity Profile ({liq.rating_badge}): Est. Spread {liq.spread_pct:.1f}%, Turnover Velocity {liq.turnover_velocity_monthly_pct:.2f}%/mo.")
 
     if confidence < CONFIDENCE_THRESHOLD:
         return PredictionResult(
@@ -732,12 +732,21 @@ def _pivot_points(high: float, low: float, close: float) -> dict:
     }
 
 
-def _no_signal(ticker: str, reason: str) -> PredictionResult:
+def _no_signal(ticker: str, reason: str, liq=None, extra_reasons: list = None) -> PredictionResult:
+    all_reasons = [reason]
+    if extra_reasons:
+        for r in extra_reasons:
+            if r not in all_reasons:
+                all_reasons.append(r)
     return PredictionResult(
         ticker=ticker,
         direction=SILENCE_LABEL,
         confidence=0.0,
-        reasoning=[reason],
+        reasoning=all_reasons,
         signal_strength="NONE",
         risk_level="UNKNOWN",
+        spread_pct=liq.spread_pct if liq else None,
+        turnover_velocity_pct=liq.turnover_velocity_monthly_pct if liq else None,
+        liquidity_rating=liq.liquidity_rating if liq else None,
+        liquidity_premium_pct=liq.risk_premium_pct if liq else None,
     )

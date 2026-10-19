@@ -80,19 +80,29 @@ function loadChartData(history) {
   // Switch to candlestick mode
   if (areaSeries) areaSeries.setData([]);
   
-  const candles = history.map(d => ({
-    time:  d.date,
-    open:  d.open,
-    high:  d.high,
-    low:   d.low,
-    close: d.close,
-  }));
+  const seenDates = new Set();
+  const candles = [];
+  const volumes = [];
 
-  const volumes = history.map(d => ({
-    time:  d.date,
-    value: d.volume,
-    color: d.close >= d.open ? 'rgba(0,229,160,0.25)' : 'rgba(255,77,109,0.25)',
-  }));
+  for (const d of history) {
+    if (!d || !d.date || seenDates.has(d.date)) continue;
+    seenDates.add(d.date);
+    candles.push({
+      time:  d.date,
+      open:  Number(d.open),
+      high:  Number(d.high),
+      low:   Number(d.low),
+      close: Number(d.close),
+    });
+    volumes.push({
+      time:  d.date,
+      value: Number(d.volume || 0),
+      color: d.close >= d.open ? 'rgba(0,229,160,0.25)' : 'rgba(255,77,109,0.25)',
+    });
+  }
+
+  candles.sort((a, b) => a.time.localeCompare(b.time));
+  volumes.sort((a, b) => a.time.localeCompare(b.time));
 
   candleSeries.setData(candles);
   volumeSeries.setData(volumes);
@@ -112,16 +122,26 @@ function loadIntradayData(intradayResponse) {
     lineColor:   isPositive ? '#00e5a0' : '#ff4d6d',
   });
 
-  const areaData = intradayResponse.ticks.map(t => ({
-    time:  t.time,
-    value: t.price,
-  }));
+  const seenTimes = new Set();
+  const areaData = [];
+  const volumeData = [];
 
-  const volumeData = intradayResponse.ticks.map(t => ({
-    time:  t.time,
-    value: t.volume,
-    color: isPositive ? 'rgba(0,229,160,0.3)' : 'rgba(255,77,109,0.3)',
-  }));
+  for (const t of intradayResponse.ticks) {
+    if (!t || !t.time || seenTimes.has(t.time)) continue;
+    seenTimes.add(t.time);
+    areaData.push({
+      time:  t.time,
+      value: Number(t.price),
+    });
+    volumeData.push({
+      time:  t.time,
+      value: Number(t.volume || 0),
+      color: isPositive ? 'rgba(0,229,160,0.3)' : 'rgba(255,77,109,0.3)',
+    });
+  }
+
+  areaData.sort((a, b) => a.time - b.time);
+  volumeData.sort((a, b) => a.time - b.time);
 
   areaSeries.setData(areaData);
   volumeSeries.setData(volumeData);

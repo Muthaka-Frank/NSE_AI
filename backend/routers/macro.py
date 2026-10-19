@@ -69,7 +69,7 @@ def get_portfolio_macro(
     for item in items:
         ticker = item.ticker.upper().strip()
         live_data = get_price(ticker)
-        current_price = live_data.get("price") if live_data else item.buy_price
+        current_price = float(live_data.get("price")) if (live_data and live_data.get("price") and float(live_data.get("price")) > 0) else float(item.buy_price)
         holdings.append({
             "ticker": ticker,
             "quantity": item.quantity,

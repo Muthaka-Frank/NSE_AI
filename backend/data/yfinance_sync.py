@@ -74,7 +74,11 @@ def sync_stock_history(ticker: str, period: str = "6mo") -> int:
             logger.warning(f"Failed to fetch Kwayisi history for {ticker}: HTTP {r.status_code}")
             return 0
             
-        soup = BeautifulSoup(r.text, "html.parser")
+        try:
+            soup = BeautifulSoup(r.text, "lxml")
+        except Exception:
+            soup = BeautifulSoup(r.text, "html.parser")
+
         table = soup.find("table", {"data-hist": True})
         if not table:
             logger.warning(f"No historical table (data-hist) found for {ticker}")
@@ -84,13 +88,19 @@ def sync_stock_history(ticker: str, period: str = "6mo") -> int:
         
         db = SessionLocal()
         added_count = 0
+        import re
         
         for row in rows:
             cols = row.find_all("td")
             if len(cols) < 3:
                 continue
                 
-            date_str = cols[0].text.strip()  # YYYY-MM-DD
+            date_raw = cols[0].text.strip()  # YYYY-MM-DD
+            date_match = re.search(r"\d{4}-\d{2}-\d{2}", date_raw)
+            if not date_match:
+                continue
+            date_str = date_match.group(0)
+
             volume_str = cols[1].text.strip().replace(",", "")
             close_str = cols[2].text.strip()
             

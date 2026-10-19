@@ -101,7 +101,7 @@ def get_portfolio(current_user: User = Depends(get_current_user), db: Session = 
     for item in items:
         ticker = item.ticker.upper()
         live_data = get_price(ticker)
-        current_price = live_data.get("price") if live_data else item.buy_price
+        current_price = float(live_data.get("price")) if (live_data and live_data.get("price") and float(live_data.get("price")) > 0) else float(item.buy_price)
         
         pnl = calculate_trade_pnl(item.buy_price, current_price, item.quantity)
         
@@ -223,7 +223,7 @@ def get_portfolio_diversification_endpoint(current_user: User = Depends(get_curr
     for item in items:
         ticker = item.ticker.upper().strip()
         live_data = get_price(ticker)
-        current_price = live_data.get("price") if live_data else item.buy_price
+        current_price = float(live_data.get("price")) if (live_data and live_data.get("price") and float(live_data.get("price")) > 0) else float(item.buy_price)
         holdings.append({
             "ticker": ticker,
             "quantity": item.quantity,

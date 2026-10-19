@@ -8,6 +8,7 @@ Parallel fetching with in-memory TTL cache.
 
 import logging
 import feedparser
+import requests
 import pytz
 import random
 import time
@@ -31,11 +32,9 @@ NAIROBI_TZ = pytz.timezone("Africa/Nairobi")
 from data.stocks_registry import NSE_STOCKS, BASE_PRICES
 
 NEWS_FEEDS = [
-    {"source": "Business Daily Africa", "url": "https://www.businessdailyafrica.com/rss/markets"},
-    {"source": "Business Daily Africa", "url": "https://www.businessdailyafrica.com/rss/economy"},
-    {"source": "Capital Business",      "url": "https://www.capitalfm.co.ke/business/feed/"},
-    {"source": "The Standard",          "url": "https://www.standardmedia.co.ke/rss/business.php"},
-    {"source": "KBC",                   "url": "https://www.kbc.co.ke/category/business/feed/"},
+    {"source": "Capital Business", "url": "https://www.capitalfm.co.ke/business/feed/"},
+    {"source": "The Standard",     "url": "https://www.standardmedia.co.ke/rss/business.php"},
+    {"source": "KBC",              "url": "https://www.kbc.co.ke/category/business/feed/"},
 ]
 
 # Simple TTL cache
@@ -131,8 +130,11 @@ def get_historical_data(ticker: str, period: str = "6mo") -> list:
                 "close": r.close,
                 "volume": r.volume
             } for r in records]
+        else:
+            data = _generate_mock_history(ticker, period)
     except Exception as e:
         logging.getLogger(__name__).error(f"Error querying StockHistory: {e}")
+        data = _generate_mock_history(ticker, period)
     finally:
         db.close()
 
@@ -200,7 +202,7 @@ def get_batch_historical_data(tickers: list[str], period: str = "3mo") -> dict[s
 
         # Cache each ticker and assign to results (slice to limit_days)
         for t, data in grouped.items():
-            trimmed = data[-limit_days:]
+            trimmed = data[-limit_days:] if data else _generate_mock_history(t, period)
             _cache_set(f"history_{t}_{period}", trimmed, 900)
             results[t] = trimmed
 
@@ -225,7 +227,10 @@ def get_news_feed(ticker_filter: Optional[str] = None) -> list:
     def _fetch_feed(feed_meta):
         items = []
         try:
-            feed = feedparser.parse(feed_meta["url"])
+            resp = requests.get(feed_meta["url"], headers={"User-Agent": "Mozilla/5.0"}, timeout=4)
+            if resp.status_code != 200:
+                return items
+            feed = feedparser.parse(resp.content)
             for entry in feed.entries[:8]:
                 title   = clean_html(entry.get("title", ""))
                 summary = clean_html(entry.get("summary", entry.get("description", "")))

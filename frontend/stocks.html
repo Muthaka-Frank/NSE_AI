@@ -369,7 +369,23 @@
       });
       const cs = chart.addCandlestickSeries({ upColor:'#00e5a0', downColor:'#ff4d6d', borderUpColor:'#00e5a0', borderDownColor:'#ff4d6d', wickUpColor:'#00b87f', wickDownColor:'#cc3d57' });
       const histData = await api.getHistory(ticker, '3mo') || { data: MOCK.generateHistory(ticker, 90) };
-      cs.setData(histData.data.map(d => ({ time:d.date, open:d.open, high:d.high, low:d.low, close:d.close })));
+      const rawPoints = (histData.data || []).map(d => ({
+        time: d.date,
+        open: Number(d.open),
+        high: Number(d.high),
+        low: Number(d.low),
+        close: Number(d.close)
+      })).filter(d => d.time && !isNaN(d.open) && !isNaN(d.high) && !isNaN(d.low) && !isNaN(d.close));
+      const seenDates = new Set();
+      const cleanPoints = [];
+      for (const p of rawPoints) {
+        if (!seenDates.has(p.time)) {
+          seenDates.add(p.time);
+          cleanPoints.push(p);
+        }
+      }
+      cleanPoints.sort((a, b) => a.time.localeCompare(b.time));
+      cs.setData(cleanPoints);
       chart.timeScale().fitContent();
 
       // Load stock detail & liquidity

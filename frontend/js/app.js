@@ -1563,5 +1563,37 @@ function renderPortfolioMacroAnalytics(data) {
   }
 }
 
+// ── Global Window Exports ───────────────────────────────────────────────────
+window.bootDashboard = bootDashboard;
+window.jumpToStock = jumpToStock;
+window.openGainersLosersModal = openGainersLosersModal;
+window.openMacroYieldModal = openMacroYieldModal;
+window.removeWatchlist = removeWatchlist;
+window.removePortfolio = removePortfolio;
+window.toggleWatchlist = toggleWatchlist;
+window.runPortfolioOptimization = runPortfolioOptimization;
+window.toggleDiversificationAnalytics = toggleDiversificationAnalytics;
+window.togglePortfolioMacroAnalytics = togglePortfolioMacroAnalytics;
+window.toggleCopilotDrawer = toggleCopilotDrawer;
+window.sendCopilotMessage = sendCopilotMessage;
 
+// ── Global Modal Backdrop & Escape Key Handlers ─────────────────────────────
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const buyModal = document.getElementById('buy-modal');
+    if (buyModal && buyModal.style.display !== 'none') closeBuyModal();
+    const moversModal = document.getElementById('gainers-losers-modal');
+    if (moversModal && moversModal.style.display !== 'none') moversModal.style.display = 'none';
+    const macroModal = document.getElementById('macro-yield-modal');
+    if (macroModal && macroModal.style.display !== 'none') macroModal.style.display = 'none';
+  }
+});
 
+['gainers-losers-modal', 'macro-yield-modal'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('click', (e) => {
+      if (e.target === el) el.style.display = 'none';
+    });
+  }
+});
