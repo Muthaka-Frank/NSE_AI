@@ -79,6 +79,18 @@ async def chat_copilot(
         for g in gainers[:3]:
             context.append(f"- {g['ticker']}: KES {g['price']:.2f} ({g['change_pct']:+.2f}%)")
 
+    # Handle IPO & new listing queries
+    if "ipo" in user_msg or "new listing" in user_msg or "pipeline" in user_msg or "kpc" in user_msg or "credit bank" in user_msg:
+        from auth.models import IPOListing
+        from ml.ipo_detector import seed_ipo_pipeline
+        seed_ipo_pipeline(db)
+        ipos = db.query(IPOListing).filter(IPOListing.status.in_(["OFFER_OPEN", "UPCOMING"])).all()
+        if ipos:
+            context.append("Active and Upcoming IPOs on the Nairobi Securities Exchange:")
+            for ip in ipos:
+                context.append(f"- {ip.company_name} ({ip.proposed_ticker or 'TBD'}): Status {ip.status}, Sector: {ip.sector}, Offer Price: KES {ip.offer_price or 'TBD'}, Open: {ip.offer_open_date} to {ip.offer_close_date}, AI Verdict: {ip.ai_verdict}")
+
+
     # 3. Call OpenAI / external LLM if API Key is configured, else use rule-based template generator
     openai_key = os.getenv("OPENAI_API_KEY")
     if openai_key and len(openai_key) > 10:
@@ -123,6 +135,27 @@ async def chat_copilot(
             pct = (profit / total_cost * 100) if total_cost > 0 else 0
             reply = f"### 💼 Portfolio Overview\n\nYour portfolio is currently valued at **KES {total_val:,.2f}** against a total purchase cost of **KES {total_cost:,.2f}**.\n\nYour total net profit/loss is **KES {profit:+,.2f} ({pct:+.2f}%)**.\n\n*   Use the new **AI Portfolio Optimizer** at the top of your portfolio tab to compute the mathematically optimal weight distributions using Modern Portfolio Theory!"
             
+    elif "ipo" in user_msg or "new listing" in user_msg or "pipeline" in user_msg or "kpc" in user_msg or "credit bank" in user_msg:
+        from auth.models import IPOListing
+        from ml.ipo_detector import seed_ipo_pipeline
+        seed_ipo_pipeline(db)
+        ipos = db.query(IPOListing).filter(IPOListing.status.in_(["OFFER_OPEN", "UPCOMING"])).all()
+        if not ipos:
+            reply = "### 🔔 NSE IPO Pipeline\n\nThere are currently no active or pending IPO listings recorded on the NSE pipeline."
+        else:
+            reply = "### 🔔 NSE Upcoming & Active IPO Pipeline\n\n"
+            for ip in ipos:
+                status_badge = "🟢 **OFFER OPEN**" if ip.status == "OFFER_OPEN" else "🟣 **CMA APPROVED / UPCOMING**"
+                reply += f"#### {ip.company_name} ({ip.proposed_ticker or 'NSE'})\n"
+                reply += f"*   **Status**: {status_badge}\n"
+                reply += f"*   **Sector**: {ip.sector} ({ip.listing_type})\n"
+                reply += f"*   **Offer Price**: KES {ip.offer_price:.2f} ({ip.offer_price_range or 'Fixed'})\n"
+                reply += f"*   **Subscription Window**: {ip.offer_open_date} to {ip.offer_close_date}\n"
+                reply += f"*   **Target Capital**: {ip.target_capital} ({ip.shares_offered:,} shares)\n"
+                reply += f"*   **AI Verdict**: **{ip.ai_verdict}** (Score: {int(ip.ai_verdict_score*100)}%)\n"
+                reply += f"*   **Prospectus Summary**: {ip.ai_summary}\n\n"
+            reply += "*Tip: You can click the **IPO Alerts** button or banner in the dashboard to register your mobile phone number for instant SMS alerts!*"
+
     elif mentioned_tickers:
         t = mentioned_tickers[0]
         info = get_stock_info(t)

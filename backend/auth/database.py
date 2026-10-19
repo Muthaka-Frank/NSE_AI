@@ -47,7 +47,7 @@ def get_db():
 
 def init_db():
     """Create all tables and composite unique indexes. Called once on startup."""
-    from auth.models import User, StockHistory, WatchlistItem, PortfolioItem, StockIntraday  # noqa: F401
+    from auth.models import User, StockHistory, WatchlistItem, PortfolioItem, StockIntraday, IPOListing, IPOSubscriber  # noqa: F401
     Base.metadata.create_all(bind=engine)
 
     # Ensure composite unique indexes exist on SQLite database

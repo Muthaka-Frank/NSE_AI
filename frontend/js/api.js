@@ -88,7 +88,17 @@ const api = {
   async getMacroBenchmarks()      { return this.get('/api/macro/benchmarks'); },
   async getMacroYieldComparison() { return this.get('/api/macro/yield-comparison'); },
   async getStockMacro(ticker)     { return this.get(`/api/macro/stock/${ticker}`); },
-  async getPortfolioMacro()       { return this.get('/api/macro/portfolio'); }
+  async getPortfolioMacro()       { return this.get('/api/macro/portfolio'); },
+
+  // IPO Pipeline & Alerts
+  async getIpos(status = null)    { return this.get(`/api/ipo${status ? `?status=${status}` : ''}`); },
+  async getActiveIpoAlert()       { return this.get('/api/ipo/active'); },
+  async getIpoDetail(id)          { return this.get(`/api/ipo/${id}`); },
+  async subscribeIpoAlerts(phone, email = null) {
+    return this.post('/api/ipo/subscribe', { phone_number: phone, email });
+  },
+  async scanIpos()                { return this.post('/api/ipo/scan', {}); },
+  async simulateIpoAlert(data = {}) { return this.post('/api/ipo/simulate-alert', data); }
 };
 
 // ── Mock data (fallback when backend is offline) ───────────────────────────

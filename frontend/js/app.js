@@ -51,6 +51,9 @@ function bootDashboard() {
   loadWatchlist().catch(e => console.warn('watchlist fetch:', e));
   loadPortfolio().catch(e => console.warn('portfolio fetch:', e));
 
+  // ── Step 1c: Load IPO Alerts & Banner ────────────────────────────────
+  loadActiveIpoAlert().catch(e => console.warn('ipo alert fetch:', e));
+
   // ── Step 2: Load news immediately (fast — not Yahoo Finance) ─────────
   // Try loading cached news first
   try {
@@ -93,6 +96,7 @@ function bootDashboard() {
   }).catch(e => console.warn('stocks fetch:', e));
   // ── Step 5: Refresh news every 2 min ─────────────────────────────────
   setInterval(loadNews, 120_000);
+  setInterval(loadActiveIpoAlert, 120_000);
 
   // ── Step 6: Fallback Polling Loop (every 30s) when SSE is not Live ───
   setInterval(async () => {
@@ -1563,6 +1567,334 @@ function renderPortfolioMacroAnalytics(data) {
   }
 }
 
+// ── IPO Pipeline & Alert Center ─────────────────────────────────────────────
+let _ipoPipelineData = [];
+let _activeIpoFilter = 'ALL';
+
+async function loadActiveIpoAlert() {
+  const banner = document.getElementById('ipo-alert-banner');
+  const titleEl = document.getElementById('ipo-banner-title');
+  const subEl = document.getElementById('ipo-banner-sub');
+  const navBtnText = document.getElementById('nav-ipo-btn-text');
+
+  try {
+    const res = await api.getActiveIpoAlert();
+    if (res && res.has_active_alert && res.alert) {
+      const a = res.alert;
+      if (titleEl) {
+        titleEl.textContent = `${a.company_name} (${a.proposed_ticker || 'NSE'}) · ${a.listing_type || 'IPO'}`;
+      }
+      if (subEl) {
+        const priceStr = a.offer_price ? `KES ${a.offer_price.toFixed(2)}` : (a.offer_price_range || 'Price TBD');
+        let countdownStr = '';
+        if (a.status === 'OFFER_OPEN') {
+          countdownStr = a.days_to_close !== null ? `⏰ Closes in ${a.days_to_close} days (${a.offer_close_date})` : 'Offer Active';
+        } else {
+          countdownStr = a.days_to_open !== null && a.days_to_open > 0 ? `⏰ Opens in ${a.days_to_open} days (${a.offer_open_date})` : 'CMA Approved';
+        }
+        subEl.textContent = `${a.status === 'OFFER_OPEN' ? '🟢 OFFER IS OPEN' : '🟣 UPCOMING'} · Offer: ${priceStr} · ${countdownStr}`;
+      }
+      if (banner) banner.style.display = 'flex';
+      if (navBtnText) {
+        navBtnText.textContent = a.status === 'OFFER_OPEN' ? 'IPO Alerts (Offer Open!)' : 'IPO Alerts (1 Active)';
+      }
+    } else {
+      if (banner) banner.style.display = 'none';
+      if (navBtnText) navBtnText.textContent = 'IPO Alerts';
+    }
+  } catch (err) {
+    console.warn('Failed to load active IPO alert:', err);
+  }
+}
+
+async function openIpoModal(focusSms = false) {
+  const modal = document.getElementById('ipo-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+
+  if (focusSms) {
+    const input = document.getElementById('ipo-phone-input');
+    if (input) {
+      input.focus();
+      input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  await refreshIpoData();
+}
+
+function closeIpoModal() {
+  const modal = document.getElementById('ipo-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function refreshIpoData() {
+  const listEl = document.getElementById('ipo-pipeline-list');
+  if (listEl) {
+    listEl.innerHTML = '<div style="text-align:center; padding:2rem; color:var(--text-muted);">Fetching live CMA & NSE IPO pipeline…</div>';
+  }
+
+  try {
+    const res = await api.getIpos();
+    if (res && res.pipeline) {
+      _ipoPipelineData = res.pipeline;
+      
+      // Update counts
+      const allCount = document.getElementById('ipo-count-all');
+      const openCount = document.getElementById('ipo-count-open');
+      const upCount = document.getElementById('ipo-count-upcoming');
+      if (allCount) allCount.textContent = res.stats.total || _ipoPipelineData.length;
+      if (openCount) openCount.textContent = res.stats.offer_open_count || 0;
+      if (upCount) upCount.textContent = res.stats.upcoming_count || 0;
+
+      renderIpoPipelineList();
+    } else {
+      if (listEl) listEl.innerHTML = '<div style="text-align:center; padding:2rem; color:#ff4d6d;">Failed to load IPO pipeline.</div>';
+    }
+  } catch (err) {
+    console.error('Error loading IPO pipeline:', err);
+    if (listEl) listEl.innerHTML = `<div style="text-align:center; padding:2rem; color:#ff4d6d;">Error: ${err.message}</div>`;
+  }
+}
+
+function filterIpoList(filter) {
+  _activeIpoFilter = filter;
+  ['all', 'open', 'upcoming'].forEach(t => {
+    const el = document.getElementById(`ipo-tab-${t}`);
+    if (el) el.classList.remove('active');
+  });
+  if (filter === 'ALL') document.getElementById('ipo-tab-all')?.classList.add('active');
+  if (filter === 'OFFER_OPEN') document.getElementById('ipo-tab-open')?.classList.add('active');
+  if (filter === 'UPCOMING') document.getElementById('ipo-tab-upcoming')?.classList.add('active');
+
+  renderIpoPipelineList();
+}
+
+function renderIpoPipelineList() {
+  const listEl = document.getElementById('ipo-pipeline-list');
+  if (!listEl) return;
+
+  let items = _ipoPipelineData;
+  if (_activeIpoFilter !== 'ALL') {
+    items = items.filter(x => x.status === _activeIpoFilter);
+  }
+
+  if (items.length === 0) {
+    listEl.innerHTML = '<div style="text-align:center; padding:2.5rem; color:var(--text-muted); font-size:0.9rem;">No IPO listings found matching the selected filter.</div>';
+    return;
+  }
+
+  listEl.innerHTML = items.map(ipo => {
+    const isOfferOpen = ipo.status === 'OFFER_OPEN';
+    const statusClass = ipo.status;
+    const statusText = isOfferOpen ? '🟢 OFFER IS OPEN FOR SUBSCRIPTION' : (ipo.status === 'UPCOMING' ? '🟣 CMA APPROVED / UPCOMING' : ipo.status);
+    const priceDisplay = ipo.offer_price ? `KES ${ipo.offer_price.toFixed(2)}` : (ipo.offer_price_range || 'To Be Announced');
+    const minInvestment = ipo.offer_price && ipo.min_application_shares 
+      ? `KES ${(ipo.offer_price * ipo.min_application_shares).toLocaleString('en-KE', {minimumFractionDigits: 2})}` 
+      : '—';
+
+    // Step tracker
+    const step1Class = 'completed'; // Announcement
+    const step2Class = ipo.cma_approval ? 'completed' : 'active'; // CMA Approval
+    const step3Class = isOfferOpen ? 'active' : (ipo.status === 'UPCOMING' ? '' : 'completed'); // Offer Open
+    const step4Class = ipo.status === 'LISTED' ? 'completed' : ''; // Listing day
+
+    const verdictColor = ipo.ai_verdict === 'ATTRACTIVE' ? '#00e676' : (ipo.ai_verdict === 'FAIR_VALUE' ? '#ffd700' : '#ff4d6d');
+
+    return `
+      <div class="ipo-pipeline-card">
+        <!-- Card Header -->
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
+          <div>
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <span style="font-size:1.15rem; font-weight:800; color:#fff;">${ipo.company_name}</span>
+              <span style="font-size:0.8rem; font-family:var(--font-mono); color:var(--accent); font-weight:700; background:rgba(0,229,160,0.1); padding:2px 6px; border-radius:4px;">
+                ${ipo.proposed_ticker || 'NSE'}
+              </span>
+              <span style="font-size:0.75rem; color:var(--text-muted);">${ipo.sector} · ${ipo.listing_type}</span>
+            </div>
+            <div style="margin-top:4px;">
+              <span class="ipo-status-badge ${statusClass}">${statusText}</span>
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:0.75rem; color:var(--text-muted);">Offer Price</div>
+            <div style="font-size:1.25rem; font-weight:800; font-family:var(--font-mono); color:#fff;">${priceDisplay}</div>
+          </div>
+        </div>
+
+        <!-- Timetable Progress Tracker -->
+        <div class="ipo-timeline-tracker">
+          <div class="ipo-step ${step1Class}">
+            <div class="ipo-step-node">✓</div>
+            <div class="ipo-step-label">Announcement</div>
+            <div class="ipo-step-date">${ipo.announcement_date || 'Approved'}</div>
+          </div>
+          <div class="ipo-step ${step2Class}">
+            <div class="ipo-step-node">2</div>
+            <div class="ipo-step-label">CMA Approval</div>
+            <div class="ipo-step-date">Approved ✓</div>
+          </div>
+          <div class="ipo-step ${step3Class}">
+            <div class="ipo-step-node">3</div>
+            <div class="ipo-step-label">Offer Opens</div>
+            <div class="ipo-step-date">${ipo.offer_open_date || 'Pending'}</div>
+          </div>
+          <div class="ipo-step">
+            <div class="ipo-step-node">4</div>
+            <div class="ipo-step-label">Offer Closes</div>
+            <div class="ipo-step-date">${ipo.offer_close_date || 'Pending'}</div>
+          </div>
+          <div class="ipo-step ${step4Class}">
+            <div class="ipo-step-node">5</div>
+            <div class="ipo-step-label">First Trading Day</div>
+            <div class="ipo-step-date">${ipo.listing_date || 'Pending'}</div>
+          </div>
+        </div>
+
+        <!-- Offering Specs KPI Grid -->
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:8px; background:rgba(0,0,0,0.25); padding:0.7rem; border-radius:6px; border:1px solid rgba(255,255,255,0.03);">
+          <div>
+            <div style="font-size:0.7rem; color:var(--text-muted);">Target Capital</div>
+            <div style="font-size:0.88rem; font-weight:700; color:#fff; font-family:var(--font-mono);">${ipo.target_capital || 'TBD'}</div>
+          </div>
+          <div>
+            <div style="font-size:0.7rem; color:var(--text-muted);">Shares Offered</div>
+            <div style="font-size:0.88rem; font-weight:700; color:#fff; font-family:var(--font-mono);">${ipo.shares_offered ? ipo.shares_offered.toLocaleString() : 'TBD'}</div>
+          </div>
+          <div>
+            <div style="font-size:0.7rem; color:var(--text-muted);">Minimum Application Lot</div>
+            <div style="font-size:0.88rem; font-weight:700; color:#fff; font-family:var(--font-mono);">${ipo.min_application_shares} shares</div>
+          </div>
+          <div>
+            <div style="font-size:0.7rem; color:var(--text-muted);">Min. Capital Outlay</div>
+            <div style="font-size:0.88rem; font-weight:700; color:var(--accent); font-family:var(--font-mono);">${minInvestment}</div>
+          </div>
+        </div>
+
+        <!-- AI Prospectus Analysis Section -->
+        <div style="background:rgba(124, 77, 255, 0.05); border:1px solid rgba(124, 77, 255, 0.2); border-radius:8px; padding:0.8rem 1rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <span style="font-size:0.8rem; font-weight:700; color:#fff; display:flex; align-items:center; gap:6px;">
+              <span>🤖</span> AI Prospectus Analysis & Intelligence
+            </span>
+            <span style="font-size:0.72rem; padding:2px 8px; border-radius:10px; font-weight:700; background:${verdictColor}22; color:${verdictColor}; border:1px solid ${verdictColor}55;">
+              ${ipo.ai_verdict} (Score: ${Math.round(ipo.ai_verdict_score * 100)}%)
+            </span>
+          </div>
+          <p style="font-size:0.8rem; line-height:1.45; color:var(--text-secondary); margin:0 0 8px 0;">
+            ${ipo.ai_summary || 'Evaluating regulatory disclosures and business prospectus…'}
+          </p>
+
+          ${ipo.highlights && ipo.highlights.length > 0 ? `
+            <div style="margin-bottom:6px;">
+              <span style="font-size:0.72rem; font-weight:700; color:#00e676; text-transform:uppercase; letter-spacing:0.5px;">Key Catalysts:</span>
+              <ul style="margin:3px 0 0 0; padding-left:1.2rem; font-size:0.75rem; color:var(--text-secondary);">
+                ${ipo.highlights.map(h => `<li>${h}</li>`).join('')}
+              </ul>
+            </div>
+          ` : ''}
+
+          ${ipo.risk_factors && ipo.risk_factors.length > 0 ? `
+            <div>
+              <span style="font-size:0.72rem; font-weight:700; color:#ff4d6d; text-transform:uppercase; letter-spacing:0.5px;">Key Risk Factors:</span>
+              <ul style="margin:3px 0 0 0; padding-left:1.2rem; font-size:0.75rem; color:var(--text-secondary);">
+                ${ipo.risk_factors.map(r => `<li>${r}</li>`).join('')}
+              </ul>
+            </div>
+          ` : ''}
+          
+          ${ipo.prospectus_url ? `
+            <div style="margin-top:8px; text-align:right;">
+              <a href="${ipo.prospectus_url}" target="_blank" rel="noopener" style="font-size:0.75rem; color:var(--accent); text-decoration:none; font-weight:600;">
+                📄 View Full CMA Prospectus PDF ↗
+              </a>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function submitIpoSubscription() {
+  const input = document.getElementById('ipo-phone-input');
+  const btn = document.getElementById('btn-subscribe-ipo');
+  const statusEl = document.getElementById('ipo-sub-status');
+  if (!input) return;
+
+  let phone = input.value.trim();
+  if (!phone) {
+    alert('Please enter your mobile phone number.');
+    input.focus();
+    return;
+  }
+
+  // Format local 07... or 01... numbers to Kenyan E.164 +254...
+  if (phone.startsWith('07') || phone.startsWith('01')) {
+    phone = '+254' + phone.substring(1);
+    input.value = phone;
+  } else if (!phone.startsWith('+')) {
+    phone = '+' + phone;
+    input.value = phone;
+  }
+
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Subscribing…';
+
+  try {
+    const res = await api.subscribeIpoAlerts(phone);
+    if (res && res.message) {
+      if (statusEl) {
+        statusEl.style.display = 'block';
+        statusEl.style.color = '#00e676';
+        statusEl.textContent = `✓ ${res.message} on ${phone}. Confirmation SMS dispatched!`;
+      }
+      btn.textContent = 'Subscribed ✓';
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.textContent = origText;
+      }, 3000);
+    }
+  } catch (err) {
+    if (statusEl) {
+      statusEl.style.display = 'block';
+      statusEl.style.color = '#ff4d6d';
+      statusEl.textContent = `Error: ${err.message || 'Failed to subscribe'}`;
+    }
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
+}
+
+async function triggerSimulateIpoAlert() {
+  const statusEl = document.getElementById('ipo-sub-status');
+  if (statusEl) {
+    statusEl.style.display = 'block';
+    statusEl.style.color = 'var(--accent)';
+    statusEl.textContent = 'Broadcasting simulated IPO announcement alert…';
+  }
+
+  try {
+    const res = await api.simulateIpoAlert({});
+    if (res && res.status === 'simulation_dispatched') {
+      if (statusEl) {
+        statusEl.style.color = '#00e676';
+        statusEl.textContent = `✓ Simulation Alert sent to ${res.recipients_count} subscriber(s): "${res.simulated_ipo}". Check SMS outbox!`;
+      }
+      // Reload banner and list
+      loadActiveIpoAlert();
+      refreshIpoData();
+    }
+  } catch (err) {
+    if (statusEl) {
+      statusEl.style.color = '#ff4d6d';
+      statusEl.textContent = `Simulation error: ${err.message}`;
+    }
+  }
+}
+
 // ── Global Window Exports ───────────────────────────────────────────────────
 window.bootDashboard = bootDashboard;
 window.jumpToStock = jumpToStock;
@@ -1577,6 +1909,15 @@ window.togglePortfolioMacroAnalytics = togglePortfolioMacroAnalytics;
 window.toggleCopilotDrawer = toggleCopilotDrawer;
 window.sendCopilotMessage = sendCopilotMessage;
 
+// IPO Exports
+window.loadActiveIpoAlert = loadActiveIpoAlert;
+window.openIpoModal = openIpoModal;
+window.closeIpoModal = closeIpoModal;
+window.refreshIpoData = refreshIpoData;
+window.filterIpoList = filterIpoList;
+window.submitIpoSubscription = submitIpoSubscription;
+window.triggerSimulateIpoAlert = triggerSimulateIpoAlert;
+
 // ── Global Modal Backdrop & Escape Key Handlers ─────────────────────────────
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
@@ -1586,10 +1927,12 @@ document.addEventListener('keydown', (e) => {
     if (moversModal && moversModal.style.display !== 'none') moversModal.style.display = 'none';
     const macroModal = document.getElementById('macro-yield-modal');
     if (macroModal && macroModal.style.display !== 'none') macroModal.style.display = 'none';
+    const ipoModal = document.getElementById('ipo-modal');
+    if (ipoModal && ipoModal.style.display !== 'none') closeIpoModal();
   }
 });
 
-['gainers-losers-modal', 'macro-yield-modal'].forEach(id => {
+['gainers-losers-modal', 'macro-yield-modal', 'ipo-modal'].forEach(id => {
   const el = document.getElementById(id);
   if (el) {
     el.addEventListener('click', (e) => {
@@ -1597,3 +1940,4 @@ document.addEventListener('keydown', (e) => {
     });
   }
 });
+

@@ -42,7 +42,7 @@ def send_sms_via_africastalking(message: str, recipients: List[str]):
         # Local logging fallback
         sms_log_path = os.path.join(os.path.dirname(__file__), "..", "tmp", "sms_outbox.log")
         os.makedirs(os.path.dirname(sms_log_path), exist_ok=True)
-        with open(sms_log_path, "a") as f:
+        with open(sms_log_path, "a", encoding="utf-8") as f:
             import datetime
             f.write(f"[{datetime.datetime.now().isoformat()}] Recipients: {recipients} | Message: {message}\n")
         logger.info("[MOCK SMS] Sent to %s: %s", recipients, message)
@@ -59,7 +59,7 @@ def send_sms_via_africastalking(message: str, recipients: List[str]):
         logger.error("Failed to send SMS via Africa's Talking: %s", e)
         # Log to local file anyway
         sms_log_path = os.path.join(os.path.dirname(__file__), "..", "tmp", "sms_outbox.log")
-        with open(sms_log_path, "a") as f:
+        with open(sms_log_path, "a", encoding="utf-8") as f:
             f.write(f"[ERROR SENDING: {e}] Recipients: {recipients} | Message: {message}\n")
         return {"status": "failed", "error": str(e)}
 

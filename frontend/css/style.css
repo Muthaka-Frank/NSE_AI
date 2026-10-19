@@ -616,3 +616,210 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 }
 .optimizer-chip span { color: var(--accent); font-weight: 700; }
 
+/* ── IPO Alert Banner & Modal ──────────────────────────────── */
+.ipo-banner {
+  background: linear-gradient(90deg, rgba(124, 77, 255, 0.18), rgba(0, 229, 160, 0.14));
+  border-bottom: 1px solid rgba(0, 229, 160, 0.35);
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  animation: slide-in 0.4s ease;
+  position: relative;
+  z-index: 10;
+}
+.ipo-banner-inner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+.ipo-banner-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 229, 160, 0.15);
+  border: 1px solid rgba(0, 229, 160, 0.4);
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: var(--accent);
+}
+.ipo-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+  animation: pulse-ring 1.8s infinite;
+}
+@keyframes pulse-ring {
+  0% { transform: scale(0.9); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.5; }
+  100% { transform: scale(0.9); opacity: 1; }
+}
+.ipo-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+.ipo-banner-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #fff;
+}
+.ipo-banner-sub {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.ipo-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn-ipo-view {
+  padding: 5px 12px;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.btn-ipo-view:hover {
+  background: #00ffb3;
+  transform: translateY(-1px);
+}
+.btn-ipo-sms {
+  padding: 5px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  color: #fff;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.btn-ipo-sms:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* IPO Modal Specific */
+.ipo-pipeline-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 1.2rem;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  transition: border-color 0.2s, background 0.2s;
+}
+.ipo-pipeline-card:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+.ipo-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.ipo-status-badge.OFFER_OPEN {
+  background: rgba(0, 230, 118, 0.15);
+  color: #00e676;
+  border: 1px solid rgba(0, 230, 118, 0.4);
+}
+.ipo-status-badge.UPCOMING {
+  background: rgba(124, 77, 255, 0.18);
+  color: #bb86fc;
+  border: 1px solid rgba(124, 77, 255, 0.4);
+}
+.ipo-status-badge.LISTED {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e0e0e0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.ipo-timeline-tracker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  margin: 0.8rem 0;
+  padding: 0 0.5rem;
+}
+.ipo-timeline-tracker::before {
+  content: '';
+  position: absolute;
+  top: 14px;
+  left: 30px;
+  right: 30px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  z-index: 1;
+}
+.ipo-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  z-index: 2;
+  text-align: center;
+}
+.ipo-step-node {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.ipo-step.active .ipo-step-node {
+  border-color: var(--accent);
+  background: rgba(0, 229, 160, 0.2);
+  color: var(--accent);
+  box-shadow: 0 0 8px rgba(0, 229, 160, 0.4);
+}
+.ipo-step.completed .ipo-step-node {
+  border-color: #00e676;
+  background: #00e676;
+  color: #000;
+}
+.ipo-step-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.ipo-step.active .ipo-step-label {
+  color: #fff;
+  font-weight: 700;
+}
+.ipo-step-date {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+

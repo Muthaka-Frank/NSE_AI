@@ -56,6 +56,25 @@
     <button class="alerts-close" onclick="document.getElementById('alerts-banner').style.display='none'">✕</button>
   </div>
 
+  <!-- ── IPO ALERT BANNER ──────────────────────────────── -->
+  <div class="ipo-banner" id="ipo-alert-banner" style="display:none">
+    <div class="ipo-banner-inner">
+      <div class="ipo-banner-badge">
+        <span class="ipo-pulse"></span>
+        <span class="ipo-badge-text">🔔 NEW IPO ALERT</span>
+      </div>
+      <div class="ipo-banner-content">
+        <span class="ipo-banner-title" id="ipo-banner-title">Upcoming IPO Announcement</span>
+        <span class="ipo-banner-sub" id="ipo-banner-sub">CMA approved listing</span>
+      </div>
+      <div class="ipo-banner-actions">
+        <button class="btn-ipo-view" onclick="openIpoModal()">View Prospectus & Timetable</button>
+        <button class="btn-ipo-sms" onclick="openIpoModal(true)">📲 Get SMS Alerts</button>
+      </div>
+    </div>
+    <button class="alerts-close" onclick="document.getElementById('ipo-alert-banner').style.display='none'">✕</button>
+  </div>
+
   <!-- ── MAIN ──────────────────────────────────────────── -->
   <main class="main">
 
@@ -92,9 +111,14 @@
             <span>Inflation: <strong id="macro-inflation" style="font-family:var(--font-mono); color:#00e676;">4.40%</strong> <span style="font-size:0.72rem; color:var(--text-muted);">(Real Rf: <span id="macro-real-rf">+11.28%</span>)</span></span>
           </div>
         </div>
-        <button onclick="openMacroYieldModal()" style="padding:0.4rem 0.85rem; font-size:0.8rem; font-weight:600; background:rgba(124, 77, 255, 0.15); border:1px solid rgba(124, 77, 255, 0.4); color:var(--accent); border-radius:6px; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.2s;">
-          <span>⚖️</span> Compare CBK vs Stock Yields
-        </button>
+        <div style="display:flex; gap:0.6rem; align-items:center; flex-wrap:wrap;">
+          <button onclick="openIpoModal()" style="padding:0.4rem 0.85rem; font-size:0.8rem; font-weight:600; background:rgba(0, 229, 160, 0.12); border:1px solid rgba(0, 229, 160, 0.4); color:var(--accent); border-radius:6px; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.2s;">
+            <span>🔔</span> <span id="nav-ipo-btn-text">IPO Alerts</span>
+          </button>
+          <button onclick="openMacroYieldModal()" style="padding:0.4rem 0.85rem; font-size:0.8rem; font-weight:600; background:rgba(124, 77, 255, 0.15); border:1px solid rgba(124, 77, 255, 0.4); color:var(--accent); border-radius:6px; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.2s;">
+            <span>⚖️</span> Compare CBK vs Stock Yields
+          </button>
+        </div>
       </div>
     </section>
 
@@ -564,9 +588,69 @@
     </div>
   </div>
 
+  <!-- ── IPO INTELLIGENCE & ALERTS MODAL ────────────────── -->
+  <div class="modal" id="ipo-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:1000; align-items:center; justify-content:center; backdrop-filter: blur(5px);">
+    <div style="background:var(--bg-card); padding:1.8rem; border-radius:12px; border:1px solid var(--border-color); width:100%; max-width:920px; position:relative; box-shadow: var(--shadow-lg); display: flex; flex-direction: column; max-height: 88vh;">
+      
+      <!-- Modal Header -->
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.8rem;">
+        <div>
+          <h3 style="margin:0; color:#fff; font-size:1.3rem; display:flex; align-items:center; gap:8px;">
+            <span>🔔</span> NSE Initial Public Offering (IPO) Intelligence & Alerts
+          </h3>
+          <p style="margin:4px 0 0 0; font-size:0.8rem; color:var(--text-muted);">
+            Real-time tracking of new stock listings, CMA regulatory approvals, and offer subscription timetables.
+          </p>
+        </div>
+        <button onclick="closeIpoModal()" style="background:transparent; border:none; color:var(--text-muted); font-size:1.3rem; cursor:pointer; padding:4px 8px; border-radius:6px;">✕</button>
+      </div>
+
+      <!-- SMS Alert Subscription Card -->
+      <div id="ipo-sms-subscription-box" style="background:linear-gradient(90deg, rgba(124, 77, 255, 0.12), rgba(0, 229, 160, 0.08)); border:1px solid rgba(0, 229, 160, 0.3); border-radius:8px; padding:0.9rem 1.2rem; margin-bottom:1.2rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+        <div style="max-width:480px;">
+          <div style="font-size:0.85rem; font-weight:700; color:#fff; display:flex; align-items:center; gap:6px;">
+            <span>📲</span> Get Instant SMS Alerts for New IPOs
+          </div>
+          <div style="font-size:0.75rem; color:var(--text-muted); margin-top:3px;">
+            Receive mobile notifications the second a new prospectus is filed or when the share subscription window opens.
+          </div>
+        </div>
+        <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+          <input type="tel" id="ipo-phone-input" placeholder="+254700000000" style="padding:0.45rem 0.8rem; background:rgba(0,0,0,0.4); border:1px solid var(--border-color); border-radius:6px; color:#fff; font-size:0.82rem; font-family:var(--font-mono); width:180px;" />
+          <button id="btn-subscribe-ipo" onclick="submitIpoSubscription()" style="padding:0.45rem 0.9rem; background:var(--accent); border:none; color:#000; font-weight:700; border-radius:6px; font-size:0.8rem; cursor:pointer; transition:background 0.2s;">
+            Subscribe SMS
+          </button>
+          <button onclick="triggerSimulateIpoAlert()" title="Test SMS alert simulation" style="padding:0.45rem 0.7rem; background:rgba(255,255,255,0.06); border:1px solid var(--border-color); color:var(--text-secondary); border-radius:6px; font-size:0.75rem; cursor:pointer;">
+            ⚡ Test Alert
+          </button>
+        </div>
+        <div id="ipo-sub-status" style="width:100%; font-size:0.75rem; display:none; margin-top:-4px;"></div>
+      </div>
+
+      <!-- KPI Summary Pills & Filter Tabs -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.6rem;">
+        <div class="period-tabs" style="display:flex; gap:0.4rem;">
+          <button class="period-btn active" id="ipo-tab-all" onclick="filterIpoList('ALL')">All Pipeline (<span id="ipo-count-all">0</span>)</button>
+          <button class="period-btn" id="ipo-tab-open" onclick="filterIpoList('OFFER_OPEN')">🟢 Offer Open (<span id="ipo-count-open">0</span>)</button>
+          <button class="period-btn" id="ipo-tab-upcoming" onclick="filterIpoList('UPCOMING')">🟣 Upcoming (<span id="ipo-count-upcoming">0</span>)</button>
+        </div>
+        <div style="font-size:0.75rem; color:var(--text-muted); display:flex; align-items:center; gap:8px;">
+          <span>⚡ Live CMA & NSE Regulatory Sync</span>
+          <button onclick="refreshIpoData()" style="background:transparent; border:1px solid var(--border-color); color:var(--text-secondary); border-radius:4px; padding:2px 8px; font-size:0.72rem; cursor:pointer;">↻ Refresh</button>
+        </div>
+      </div>
+
+      <!-- Scrollable List of IPO Cards -->
+      <div id="ipo-pipeline-list" style="flex:1; overflow-y:auto; padding-right:4px;">
+        <div style="text-align:center; padding:2rem; color:var(--text-muted);">Loading NSE IPO Pipeline…</div>
+      </div>
+
+    </div>
+  </div>
+
   <script src="js/api.js?v=6"></script>
   <script src="js/chart.js?v=4"></script>
-  <script src="js/app.js?v=18"></script>
+  <script src="js/app.js?v=19"></script>
   <script>
     // Register PWA service worker
     if ("serviceWorker" in navigator) {
