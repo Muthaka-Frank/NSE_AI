@@ -57,6 +57,8 @@ def root():
             "stock_detail":    "/api/stocks/{ticker}",
             "stock_history":   "/api/stocks/{ticker}/history",
             "stock_signal":    "/api/stocks/{ticker}/prediction",
+            "stock_gaps":      "/api/stocks/gaps/diagnosis",
+            "stock_backfill":  "/api/stocks/gaps/backfill",
             "news":            "/api/news",
             "recommendations": "/api/recommendations",
             "data_sources":    "/api/data-sources",

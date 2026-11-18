@@ -10,6 +10,12 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from auth.database import SessionLocal
 from auth.models import StockHistory
+from data.http_client import (
+    safe_scrape_get,
+    is_circuit_breaker_active,
+    trip_circuit_breaker,
+    polite_delay,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +32,9 @@ def sync_stock_history(ticker: str, period: str = "6mo") -> int:
     ticker = ticker.upper().strip()
     
     # 1. Check circuit breaker
-    if time.time() < _SYNC_BLOCKED_UNTIL:
-        logger.warning(f"History sync skipped for {ticker} due to active 30-minute rate-limit cooldown.")
+    if time.time() < _SYNC_BLOCKED_UNTIL or is_circuit_breaker_active():
+        logger.warning(f"History sync skipped for {ticker} due to active rate-limit cooldown.")
+        return 0
         return 0
 
     # 2. Check if database already has recent history for this stock
@@ -52,26 +59,11 @@ def sync_stock_history(ticker: str, period: str = "6mo") -> int:
     from data.nse_scraper import _TICKER_MAP
     kwayisi_ticker = _TICKER_MAP.get(ticker, ticker)
     url = f"https://afx.kwayisi.org/nse/{kwayisi_ticker.lower()}.html"
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
-        )
-    }
     
-    logger.info(f"Syncing history for {ticker} from Kwayisi: {url}...")
+    logger.info(f"Politely syncing history for {ticker} from Kwayisi: {url}...")
     try:
-        r = requests.get(url, headers=headers, timeout=10)
-        
-        # Trigger circuit breaker if blocked
-        if r.status_code in [403, 429]:
-            logger.error(f"Kwayisi has rate-limited or blocked requests (HTTP {r.status_code}). Triggering 30-minute history cooldown.")
-            _SYNC_BLOCKED_UNTIL = time.time() + 1800
-            return 0
-            
-        if r.status_code != 200:
-            logger.warning(f"Failed to fetch Kwayisi history for {ticker}: HTTP {r.status_code}")
+        r = safe_scrape_get(url, timeout=(3.0, 6.0))
+        if not r or r.status_code != 200:
             return 0
             
         try:
@@ -79,9 +71,16 @@ def sync_stock_history(ticker: str, period: str = "6mo") -> int:
         except Exception:
             soup = BeautifulSoup(r.text, "html.parser")
 
+        import re
         table = soup.find("table", {"data-hist": True})
         if not table:
-            logger.warning(f"No historical table (data-hist) found for {ticker}")
+            for t in soup.find_all("table"):
+                if t.find(string=re.compile(r"\d{4}-\d{2}-\d{2}")):
+                    table = t
+                    break
+
+        if not table:
+            logger.warning(f"No historical table found for {ticker}")
             return 0
             
         rows = table.find("tbody").find_all("tr") if table.find("tbody") else table.find_all("tr")[1:]
@@ -195,20 +194,18 @@ def sync_all_history(period: str = "6mo") -> int:
     if not active_tickers:
         active_tickers = {"SCOM", "EQTY", "KCB", "COOP", "BRIT", "EABL", "ABSA", "NCBA"}
         
-    tickers = sorted(list(active_tickers))
-    logger.info(f"Targeting active/core tickers for history sync: {tickers}")
+    tickers = sorted(list(active_tickers))[:5]  # Cap to 5 to protect IP address
+    logger.info(f"Targeting active/core tickers for history sync (capped at 5 to protect IP): {tickers}")
     
     for index, ticker in enumerate(tickers):
         # Break immediately if circuit breaker got triggered in a previous loop step
-        if time.time() < _SYNC_BLOCKED_UNTIL:
+        if time.time() < _SYNC_BLOCKED_UNTIL or is_circuit_breaker_active():
             logger.warning("Aborting bulk history sync loop due to active rate-limit block.")
             break
             
         # Add random crawl delay to prevent IP blocking
         if index > 0:
-            sleep_time = random.uniform(2.0, 4.0)
-            logger.info(f"Rate-limiting: Sleeping for {sleep_time:.2f}s before fetching {ticker}...")
-            time.sleep(sleep_time)
+            polite_delay(3.5, 6.0)
             
         total_added += sync_stock_history(ticker, period)
         

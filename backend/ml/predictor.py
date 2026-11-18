@@ -88,7 +88,6 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
         )
 
     # --- Machine Learning Pipeline (Random Forest Classifier) ---
-    # Unconditionally halted until ENABLE_ML_MODEL is set to True
     if ENABLE_ML_MODEL:
         try:
             import logging
@@ -171,15 +170,26 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
                     risk = "MEDIUM"
                     reasons.append("No active signal issued (market direction neutral).")
                     
+                # Append liquidity reasoning
+                reasons.append(f"Liquidity Profile ({liq.rating_badge}): Est. Spread {liq.spread_pct:.1f}%, Turnover Velocity {liq.turnover_velocity_monthly_pct:.2f}%/mo.")
+
                 # Strict confidence threshold check
                 if confidence < CONFIDENCE_THRESHOLD and direction in ["BUY", "SELL"]:
                     return PredictionResult(
                         ticker=ticker,
                         direction=SILENCE_LABEL,
                         confidence=confidence,
-                        reasoning=["ML Classifier confidence below 95% threshold.", "No high-probability signal issued."],
+                        reasoning=[
+                            f"ML Classifier confidence ({confidence:.1%}) below {CONFIDENCE_THRESHOLD:.0%} threshold.",
+                            "No high-probability signal issued.",
+                            f"Liquidity Profile ({liq.rating_badge}): Est. Spread {liq.spread_pct:.1f}%, Turnover Velocity {liq.turnover_velocity_monthly_pct:.2f}%/mo."
+                        ],
                         signal_strength="NONE",
                         risk_level="UNKNOWN",
+                        spread_pct=liq.spread_pct,
+                        turnover_velocity_pct=liq.turnover_velocity_monthly_pct,
+                        liquidity_rating=liq.liquidity_rating,
+                        liquidity_premium_pct=liq.risk_premium_pct,
                     )
                     
                 strength = "STRONG" if confidence >= 0.85 else ("MODERATE" if confidence >= 0.75 else "WEAK")
@@ -198,6 +208,18 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
                     min_days = max(1, int(round(expected_days * 0.75)))
                     max_days = max(min_days + 1, int(round(expected_days * 1.25)))
                     timeframe = f"{min_days}-{max_days} days"
+
+                # Calculate fee hurdle and macro profile
+                from data.stocks_registry import NSE_STOCKS
+                stock_meta = NSE_STOCKS.get(ticker, {})
+                dps = float(stock_meta.get("dividend_per_share", 0.0))
+                
+                from core.fees import calculate_breakeven_price, ROUNDTRIP_BREAKEVEN_HURDLE_PCT
+                breakeven_price = calculate_breakeven_price(current_price)
+                fee_hurdle_pct = round(ROUNDTRIP_BREAKEVEN_HURDLE_PCT, 2)
+
+                from ml.macro import compute_stock_macro_profile
+                macro_prof = compute_stock_macro_profile(ticker, current_price, dps)
                 
                 return PredictionResult(
                     ticker=ticker,
@@ -207,7 +229,18 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
                     signal_strength=strength,
                     price_target=target,
                     risk_level=risk,
-                    timeframe=timeframe
+                    timeframe=timeframe,
+                    spread_pct=liq.spread_pct,
+                    turnover_velocity_pct=liq.turnover_velocity_monthly_pct,
+                    liquidity_rating=liq.liquidity_rating,
+                    liquidity_premium_pct=liq.risk_premium_pct,
+                    breakeven_price=breakeven_price,
+                    fee_hurdle_pct=fee_hurdle_pct,
+                    dividend_yield_pct=macro_prof["gross_dividend_yield"] if macro_prof else None,
+                    tbill_91d_pct=macro_prof["tbill_91d_rate"] if macro_prof else None,
+                    net_yield_spread_pct=macro_prof["net_yield_spread"] if macro_prof else None,
+                    required_growth_hurdle_pct=macro_prof["required_growth_hurdle"] if macro_prof else None,
+                    macro_verdict=macro_prof["verdict_badge"] if macro_prof else None,
                 )
         except Exception as e:
             logging.getLogger(__name__).error(f"ML predictor failed, falling back to rule-based: {e}")
@@ -268,7 +301,10 @@ def predict(ticker: str, history: list[dict], sentiment: Optional[SentimentResul
         indicators["volume"] = "normal"
 
     # ── Trend-Adaptive Dynamic Scoring & Reasoning ──────────────────────────────
-    reasons.append("Engine Mode: 7-Indicator Technical & Sentiment Fusion (ML Random Forest algorithm globally halted).")
+    if ENABLE_ML_MODEL:
+        reasons.append("Engine Mode: 7-Indicator Technical & Sentiment Fusion (ML fallback).")
+    else:
+        reasons.append("Engine Mode: 7-Indicator Technical & Sentiment Fusion.")
     is_trending = adx > 25
     is_ranging = adx < 20
 

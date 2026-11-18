@@ -560,5 +560,11 @@
         "sector": "Investment",
         "yahoo": "HFCB.NR",
         "base_price": 11.9
+    },
+    "QMRT": {
+        "name": "Quick Mart Plc",
+        "sector": "Investment",
+        "yahoo": "QMRT.NR",
+        "base_price": 8.9
     }
 }

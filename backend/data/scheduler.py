@@ -142,10 +142,16 @@ def _scheduler_loop():
     """Loops and checks time to run intraday snapshots and daily closing scrapes."""
     logger.info("NSE background scheduler loop started.")
     
-    # Pre-populate history and initial snapshot on startup
+    # Pre-populate history and auto-heal any database gaps on startup (polite 0-burst approach)
     try:
-        run_daily_scrape()
-        record_intraday_snapshot()
+        from data.backfill_gaps import auto_heal_database_gaps
+        auto_heal_database_gaps()
+    except Exception as e:
+        logger.warning("Automatic gap healing on startup warning: %s", e)
+
+    try:
+        if is_market_open():
+            record_intraday_snapshot()
     except Exception as e:
         logger.error("Scheduler startup tasks error: %s", e)
 

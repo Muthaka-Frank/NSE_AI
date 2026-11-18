@@ -12,6 +12,12 @@ import threading
 from datetime import datetime
 import pytz
 from data.stocks_registry import _TRACKED_TICKERS, add_new_stock
+from data.http_client import (
+    safe_scrape_get,
+    is_circuit_breaker_active,
+    trip_circuit_breaker,
+    get_circuit_breaker_remaining,
+)
 
 _scrape_lock = threading.RLock()
 
@@ -83,17 +89,11 @@ def is_market_open() -> bool:
 
 def should_allow_scrape() -> bool:
     """
-    Allows fetching real quotes on weekdays from 8:55 AM EAT onwards (including post-market closing quotes).
-    On weekends (Sat-Sun), network scraping is disabled to save bandwidth.
+    Allows fetching real quotes from Kwayisi whenever cache expires.
+    Active during market hours, after market close, and on weekends
+    (to capture Friday's official closing session and real volumes).
     """
-    import sys
-    if "unittest" in sys.modules or "pytest" in sys.modules:
-        return True
-    now = datetime.now(_NAIROBI_TZ)
-    if now.weekday() >= 5:
-        return False
-    start_time = now.replace(hour=settings.MARKET_OPEN_HOUR, minute=settings.MARKET_OPEN_MINUTE, second=0, microsecond=0)
-    return now >= start_time
+    return True
 
 
 def _load_prices_from_db():
@@ -110,11 +110,15 @@ def _load_prices_from_db():
                 for ticker in _TRACKED_TICKERS:
                     record = db.query(StockHistory).filter(StockHistory.ticker == ticker).order_by(StockHistory.date.desc()).first()
                     if record:
+                        # Calculate change against previous close (open)
+                        open_val = record.open if record.open and record.open > 0 else record.close
+                        change = round(record.close - open_val, 2)
+                        change_pct = round((change / open_val) * 100, 2) if open_val > 0 else 0.0
                         _store(
                             ticker, 
                             price=record.close, 
-                            change=0.0, 
-                            change_pct=0.0, 
+                            change=change, 
+                            change_pct=change_pct, 
                             volume=record.volume, 
                             source="kwayisi_scrape"
                         )
@@ -127,11 +131,12 @@ def _load_prices_from_db():
 def _scrape_kwayisi() -> dict[str, dict]:
     """
     Scrape NSE prices exclusively from afx.kwayisi.org/nse/ HTML table.
+    Uses stealth anti-bot headers, proxy routing (if configured), and circuit breakers.
     Returns {ticker: {price, change, change_pct, volume, data_source}}
     """
     global _LAST_GLOBAL_FETCH, _KWAYISI_DOWN_UNTIL
     now = time.time()
-    if now < _KWAYISI_DOWN_UNTIL:
+    if now < _KWAYISI_DOWN_UNTIL or is_circuit_breaker_active():
         return {}
 
     if now - _LAST_GLOBAL_FETCH < _GLOBAL_CACHE_TTL and _PRICE_CACHE:
@@ -139,22 +144,26 @@ def _scrape_kwayisi() -> dict[str, dict]:
 
     results = {}
     try:
-        logger.info("Scraping real NSE prices from %s", _KWAYISI_URL)
-        r = requests.get(_KWAYISI_URL, headers=_HEADERS, timeout=5)
-        if r.status_code != 200:
-            logger.warning("Kwayisi scrape failed with status code: %d. Circuit breaker active for 5 minutes.", r.status_code)
-            _KWAYISI_DOWN_UNTIL = now + 300
+        logger.info("Politely fetching real NSE prices from %s", _KWAYISI_URL)
+        r = safe_scrape_get(_KWAYISI_URL, timeout=(3.0, 6.0))
+        if not r or r.status_code != 200:
+            _KWAYISI_DOWN_UNTIL = now + settings.SCRAPER_CIRCUIT_BREAKER_SECS
             return results
 
-        soup = BeautifulSoup(r.text, "lxml")
+        try:
+            soup = BeautifulSoup(r.text, "lxml")
+        except Exception:
+            soup = BeautifulSoup(r.text, "html.parser")
+
         table_container = soup.find("div", class_="t")
         if not table_container:
             table_container = soup
         
         table = table_container.find("table")
         if not table:
-            logger.warning("Kwayisi scrape: table not found in HTML. Circuit breaker active for 5 minutes.")
-            _KWAYISI_DOWN_UNTIL = now + 300
+            logger.warning("Kwayisi scrape: table not found in HTML. Circuit breaker active.")
+            trip_circuit_breaker("Kwayisi table missing from HTML response")
+            _KWAYISI_DOWN_UNTIL = now + settings.SCRAPER_CIRCUIT_BREAKER_SECS
             return results
 
         rows = table.find_all("tr")
@@ -215,6 +224,57 @@ def _scrape_kwayisi() -> dict[str, dict]:
         _LAST_GLOBAL_FETCH = now
         logger.info("Kwayisi scrape complete. Parsed %d listings.", count)
 
+        # Synchronize these official quotes into StockHistory for the session date
+        try:
+            session_date = datetime.now(_NAIROBI_TZ).strftime("%Y-%m-%d")
+            time_tag = soup.find("time", id="u")
+            if time_tag and time_tag.get("datetime"):
+                session_date = time_tag["datetime"][:10]
+
+            from auth.database import SessionLocal
+            from auth.models import StockHistory
+            import uuid
+
+            db = SessionLocal()
+            try:
+                for t_code, data in results.items():
+                    price = data["price"]
+                    change = data["change"]
+                    vol = data["volume"]
+                    open_val = round(price - change, 2)
+                    high_val = round(max(price, open_val), 2)
+                    low_val = round(min(price, open_val), 2)
+
+                    record = db.query(StockHistory).filter(
+                        StockHistory.ticker == t_code,
+                        StockHistory.date == session_date
+                    ).first()
+
+                    if record:
+                        record.close = price
+                        record.open = open_val
+                        record.high = high_val
+                        record.low = low_val
+                        record.volume = vol
+                    else:
+                        new_rec = StockHistory(
+                            id=str(uuid.uuid4()),
+                            ticker=t_code,
+                            date=session_date,
+                            open=open_val,
+                            high=high_val,
+                            low=low_val,
+                            close=price,
+                            volume=vol
+                        )
+                        db.add(new_rec)
+                db.commit()
+                logger.info("Synchronized %d official quotes into StockHistory for %s", len(results), session_date)
+            finally:
+                db.close()
+        except Exception as e:
+            logger.debug("Non-critical DB sync notice during scrape: %s", e)
+
     except Exception as e:
         logger.warning("Error during Kwayisi scrape: %s. Circuit breaker active for 5 minutes.", e)
         _KWAYISI_DOWN_UNTIL = now + 300
@@ -262,12 +322,18 @@ def get_price(ticker: str) -> Optional[dict]:
         if cached:
             return cached
 
+        # Fallback to local SQLite database if Kwayisi is unreachable or blocked
+        if not _PRICE_CACHE:
+            _load_prices_from_db()
+            return _cached(ticker)
+
         return None
 
 
 def get_all_prices() -> dict[str, dict]:
     """
     Batch-fetch NSE prices for all tracked stocks strictly from Kwayisi (afx.kwayisi.org).
+    If Kwayisi is unreachable or blocked, seamlessly falls back to latest prices in local SQLite DB.
     """
     global _LAST_GLOBAL_FETCH
     now = time.time()
@@ -314,6 +380,16 @@ def get_all_prices() -> dict[str, dict]:
             cached = _cached(ticker)
             if cached:
                 results[ticker] = cached
+
+        # If Kwayisi returned nothing (e.g. IP blocked or server down), fall back to DB
+        if not results:
+            logger.info("Kwayisi unavailable; populating price cache from local SQLite database.")
+            _load_prices_from_db()
+            for ticker in _TRACKED_TICKERS:
+                cached = _cached(ticker)
+                if cached:
+                    results[ticker] = cached
+
         return results
 
 

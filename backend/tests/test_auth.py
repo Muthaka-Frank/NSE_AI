@@ -38,6 +38,7 @@ class TestAuthRouter(unittest.TestCase):
         app.dependency_overrides.pop(get_db, None)
         # Drop all tables after test
         Base.metadata.drop_all(bind=engine)
+        engine.dispose()
         # Remove the file if exists
         try:
             if os.path.exists(TEST_DB_FILE):

@@ -12,7 +12,14 @@ from datetime import datetime
 from auth.database import get_db
 from auth.models import IPOListing, IPOSubscriber, User
 from auth.dependencies import get_current_user_optional
-from ml.ipo_detector import seed_ipo_pipeline, scan_articles_for_ipo_signals, check_and_send_ipo_alert
+from ml.ipo_detector import (
+    seed_ipo_pipeline,
+    scan_articles_for_ipo_signals,
+    check_and_send_ipo_alert,
+    sync_ipo_pipeline_statuses,
+    compute_ipo_status,
+    find_latest_news_for_ipo
+)
 from data.fetcher import get_news_feed
 
 router = APIRouter(prefix="/api/ipo", tags=["IPO Alerts & Pipeline"])
@@ -29,10 +36,11 @@ class SimulateAlertRequest(BaseModel):
     custom_price: Optional[float] = None
 
 
-def _format_ipo_dict(ipo: IPOListing) -> dict:
+def _format_ipo_dict(ipo: IPOListing, news_feed: Optional[list] = None) -> dict:
     today_str = datetime.now().strftime("%Y-%m-%d")
     days_to_open = None
     days_to_close = None
+    days_to_listing = None
     
     if ipo.offer_open_date:
         try:
@@ -49,6 +57,16 @@ def _format_ipo_dict(ipo: IPOListing) -> dict:
             days_to_close = (d_close - d_today).days
         except Exception:
             pass
+
+    if ipo.listing_date:
+        try:
+            d_list = datetime.strptime(ipo.listing_date, "%Y-%m-%d")
+            d_today = datetime.strptime(today_str, "%Y-%m-%d")
+            days_to_listing = (d_list - d_today).days
+        except Exception:
+            pass
+
+    latest_news = find_latest_news_for_ipo(ipo.company_name, ipo.proposed_ticker, news_feed=news_feed)
 
     return {
         "id": ipo.id,
@@ -77,34 +95,43 @@ def _format_ipo_dict(ipo: IPOListing) -> dict:
         "is_active_alert": ipo.is_active_alert,
         "days_to_open": days_to_open,
         "days_to_close": days_to_close,
+        "days_to_listing": days_to_listing,
+        "latest_news": latest_news,
         "created_at": ipo.created_at.isoformat() if ipo.created_at else None,
     }
 
 
 @router.get("")
-def list_ipos(status: Optional[str] = Query(None, description="Filter by status e.g. OFFER_OPEN, UPCOMING, LISTED"), db: Session = Depends(get_db)):
-    """List all tracked IPOs with pipeline statistics and currently active alert banner."""
-    # Ensure seed data exists
+def list_ipos(status: Optional[str] = Query(None, description="Filter by status e.g. OFFER_OPEN, UPCOMING, OFFER_CLOSED, LISTED"), db: Session = Depends(get_db)):
+    """List all tracked IPOs with pipeline statistics, latest news citations, and currently active alert banner."""
+    # Ensure seed data exists and dynamic dates are synced
     seed_ipo_pipeline(db)
+    sync_ipo_pipeline_statuses(db)
     
     query = db.query(IPOListing)
     if status:
         query = query.filter(IPOListing.status == status.upper())
         
     all_ipos = query.all()
+    news_feed = get_news_feed()
     
-    # Sort order: OFFER_OPEN first, then UPCOMING, then others
+    # Sort order: OFFER_OPEN first, then UPCOMING, then OFFER_CLOSED, LISTED, POSTPONED
     status_priority = {"OFFER_OPEN": 0, "UPCOMING": 1, "OFFER_CLOSED": 2, "LISTED": 3, "POSTPONED": 4}
-    formatted = [_format_ipo_dict(item) for item in all_ipos]
+    formatted = [_format_ipo_dict(item, news_feed=news_feed) for item in all_ipos]
     formatted.sort(key=lambda x: (status_priority.get(x["status"], 9), x["offer_open_date"] or "9999-99-99"))
     
-    # Identify the highest priority active alert item
+    # Identify the highest priority active alert item (valid positive window only)
     active_alert = next((x for x in formatted if x["is_active_alert"] and x["status"] in ["OFFER_OPEN", "UPCOMING"]), None)
+    if not active_alert:
+        active_alert = next((x for x in formatted if x["status"] == "OFFER_OPEN" and (x["days_to_close"] is None or x["days_to_close"] >= 0)), None)
+    if not active_alert:
+        active_alert = next((x for x in formatted if x["status"] == "UPCOMING" and (x["days_to_open"] is None or x["days_to_open"] >= 0)), None)
     
     stats = {
         "total": len(formatted),
         "offer_open_count": sum(1 for x in formatted if x["status"] == "OFFER_OPEN"),
         "upcoming_count": sum(1 for x in formatted if x["status"] == "UPCOMING"),
+        "closed_count": sum(1 for x in formatted if x["status"] == "OFFER_CLOSED"),
         "listed_count": sum(1 for x in formatted if x["status"] == "LISTED")
     }
     
@@ -117,19 +144,33 @@ def list_ipos(status: Optional[str] = Query(None, description="Filter by status 
 
 @router.get("/active")
 def get_active_ipo_alert(db: Session = Depends(get_db)):
-    """Returns currently active IPO alert for in-app banner display."""
+    """Returns currently active IPO alert for in-app banner display with latest news citation."""
     seed_ipo_pipeline(db)
+    sync_ipo_pipeline_statuses(db)
+    news_feed = get_news_feed()
+
+    # 1. Look for designated active alert that is genuinely open or upcoming
     active = db.query(IPOListing).filter(
         IPOListing.is_active_alert.is_(True),
         IPOListing.status.in_(["OFFER_OPEN", "UPCOMING"])
-    ).order_by(
-        IPOListing.status.asc()  # OFFER_OPEN before UPCOMING alphabetically
     ).first()
-    
+
+    # 2. Fallback: prioritize currently open offers with future/current close dates
+    if not active:
+        active = db.query(IPOListing).filter(
+            IPOListing.status == "OFFER_OPEN"
+        ).order_by(IPOListing.offer_close_date.asc()).first()
+
+    # 3. Fallback: upcoming offers with nearest open date
+    if not active:
+        active = db.query(IPOListing).filter(
+            IPOListing.status == "UPCOMING"
+        ).order_by(IPOListing.offer_open_date.asc()).first()
+
     if not active:
         return {"has_active_alert": False, "alert": None}
-        
-    formatted = _format_ipo_dict(active)
+
+    formatted = _format_ipo_dict(active, news_feed=news_feed)
     return {
         "has_active_alert": True,
         "alert": formatted
@@ -138,11 +179,12 @@ def get_active_ipo_alert(db: Session = Depends(get_db)):
 
 @router.get("/{ipo_id}")
 def get_ipo_detail(ipo_id: str, db: Session = Depends(get_db)):
-    """Get detailed prospectus breakdown and timetable for a specific IPO."""
+    """Get detailed prospectus breakdown, timetable, and latest news for a specific IPO."""
     ipo = db.query(IPOListing).filter(IPOListing.id == ipo_id).first()
     if not ipo:
         raise HTTPException(status_code=404, detail="IPO listing not found")
-    return _format_ipo_dict(ipo)
+    news_feed = get_news_feed()
+    return _format_ipo_dict(ipo, news_feed=news_feed)
 
 
 @router.post("/subscribe")

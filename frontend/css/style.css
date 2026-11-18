@@ -750,6 +750,11 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   color: #bb86fc;
   border: 1px solid rgba(124, 77, 255, 0.4);
 }
+.ipo-status-badge.OFFER_CLOSED {
+  background: rgba(255, 179, 0, 0.15);
+  color: #ffb300;
+  border: 1px solid rgba(255, 179, 0, 0.4);
+}
 .ipo-status-badge.LISTED {
   background: rgba(255, 255, 255, 0.08);
   color: #e0e0e0;
@@ -820,6 +825,66 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   font-size: 0.65rem;
   color: var(--text-muted);
   font-family: var(--font-mono);
+}
+
+/* ── News Feed IPO Highlights ────────────────────────── */
+.news-card-ipo {
+  border-left: 3px solid var(--accent);
+  background: linear-gradient(135deg, rgba(0, 229, 160, 0.04), rgba(124, 77, 255, 0.04));
+}
+.news-ipo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #bb86fc;
+  background: rgba(124, 77, 255, 0.15);
+  border: 1px solid rgba(124, 77, 255, 0.4);
+  padding: 1px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.news-ipo-badge:hover {
+  background: rgba(124, 77, 255, 0.3);
+  color: #fff;
+  border-color: #bb86fc;
+}
+.news-ticker-chip.ipo-ticker {
+  background: rgba(0, 229, 160, 0.15);
+  color: var(--accent);
+  border: 1px solid rgba(0, 229, 160, 0.35);
+  font-weight: 700;
+}
+.news-ticker-chip.ipo-ticker:hover {
+  background: rgba(0, 229, 160, 0.3);
+}
+
+/* ── IPO Pipeline News Citation Card ─────────────────── */
+.ipo-news-source-card {
+  background: linear-gradient(90deg, rgba(0, 229, 160, 0.06), rgba(124, 77, 255, 0.08));
+  border: 1px solid rgba(0, 229, 160, 0.25);
+  border-radius: 8px;
+  padding: 0.8rem 1rem;
+  margin: 0.3rem 0;
+  transition: border-color 0.2s, background 0.2s;
+}
+.ipo-news-source-card:hover {
+  border-color: rgba(0, 229, 160, 0.45);
+  background: linear-gradient(90deg, rgba(0, 229, 160, 0.09), rgba(124, 77, 255, 0.12));
+}
+.ipo-news-pill {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: 0.5px;
+  background: rgba(0, 229, 160, 0.12);
+  padding: 2px 7px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  border: 1px solid rgba(0, 229, 160, 0.3);
 }
 
 

@@ -16,6 +16,8 @@ from ml.ipo_detector import (
     seed_ipo_pipeline,
     scan_articles_for_ipo_signals,
     check_and_send_ipo_alert,
+    sync_ipo_pipeline_statuses,
+    compute_ipo_status,
     KNOWN_IPO_CANDIDATES
 )
 
@@ -59,10 +61,78 @@ class TestIPOAlerts(unittest.TestCase):
         self.assertEqual(kpc.ai_verdict, "ATTRACTIVE")
         self.assertGreater(kpc.ai_verdict_score, 0.8)
 
-        # Check Credit Bank
+        # Check Credit Bank - dynamically computed as OFFER_CLOSED since offer closed 2026-11-05
         cbl = self.db.query(IPOListing).filter(IPOListing.proposed_ticker == "CBL").first()
         self.assertIsNotNone(cbl)
-        self.assertEqual(cbl.status, "OFFER_OPEN")
+        self.assertEqual(cbl.status, "OFFER_CLOSED")
+        self.assertFalse(cbl.is_active_alert)
+
+        # Check KPC - dynamically computed: on 2026-11-10 (offer opening day), status transitions to OFFER_OPEN
+        self.assertIn(kpc.status, ["OFFER_OPEN", "UPCOMING"])
+        self.assertTrue(kpc.is_active_alert)
+
+    def test_dynamic_lifecycle_transitions(self):
+        """Verify compute_ipo_status accurately evaluates status at each phase of the IPO lifecycle."""
+        open_d = "2026-11-10"
+        close_d = "2026-11-28"
+        list_d = "2026-12-15"
+
+        # 1. Before opening -> UPCOMING
+        self.assertEqual(
+            compute_ipo_status(open_d, close_d, list_d, as_of_date="2026-11-09"),
+            "UPCOMING"
+        )
+        # 2. On opening day -> OFFER_OPEN
+        self.assertEqual(
+            compute_ipo_status(open_d, close_d, list_d, as_of_date="2026-11-10"),
+            "OFFER_OPEN"
+        )
+        # 3. Inside subscription window -> OFFER_OPEN
+        self.assertEqual(
+            compute_ipo_status(open_d, close_d, list_d, as_of_date="2026-11-20"),
+            "OFFER_OPEN"
+        )
+        # 4. On closing day -> OFFER_OPEN
+        self.assertEqual(
+            compute_ipo_status(open_d, close_d, list_d, as_of_date="2026-11-28"),
+            "OFFER_OPEN"
+        )
+        # 5. Day after close -> OFFER_CLOSED
+        self.assertEqual(
+            compute_ipo_status(open_d, close_d, list_d, as_of_date="2026-11-29"),
+            "OFFER_CLOSED"
+        )
+        # 6. Listing day -> LISTED
+        self.assertEqual(
+            compute_ipo_status(open_d, close_d, list_d, as_of_date="2026-12-15"),
+            "LISTED"
+        )
+        # 7. Post listing -> LISTED
+        self.assertEqual(
+            compute_ipo_status(open_d, close_d, list_d, as_of_date="2027-01-01"),
+            "LISTED"
+        )
+        # 8. Administrative overrides (POSTPONED, CANCELLED) preserved
+        self.assertEqual(
+            compute_ipo_status(open_d, close_d, list_d, current_status="POSTPONED", as_of_date="2026-11-15"),
+            "POSTPONED"
+        )
+
+    def test_active_alert_banner_no_negative_countdown(self):
+        """Verify /api/ipo/active delivers valid alert without negative countdown days."""
+        r = client.get("/api/ipo/active")
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertTrue(data["has_active_alert"])
+        alert = data["alert"]
+        self.assertIsNotNone(alert)
+        self.assertIn(alert["status"], ["UPCOMING", "OFFER_OPEN"])
+
+        # Days countdown must not be negative
+        if alert["status"] == "UPCOMING" and alert.get("days_to_open") is not None:
+            self.assertGreaterEqual(alert["days_to_open"], 0)
+        if alert["status"] == "OFFER_OPEN" and alert.get("days_to_close") is not None:
+            self.assertGreaterEqual(alert["days_to_close"], 0)
 
     def test_nlp_news_article_scanner(self):
         """Verify that scan_articles_for_ipo_signals catches IPO keywords and extracts price."""
@@ -154,6 +224,9 @@ class TestIPOAlerts(unittest.TestCase):
         self.assertEqual(detail["id"], first_id)
         self.assertIn("ai_verdict", detail)
         self.assertIsInstance(detail["highlights"], list)
+        self.assertIn("latest_news", detail)
+        self.assertIsNotNone(detail["latest_news"])
+        self.assertIn("source", detail["latest_news"])
 
         # 3. GET /api/ipo/active
         r_act = client.get("/api/ipo/active")
@@ -161,6 +234,7 @@ class TestIPOAlerts(unittest.TestCase):
         act_data = r_act.json()
         self.assertTrue(act_data["has_active_alert"])
         self.assertIsNotNone(act_data["alert"])
+        self.assertIn("latest_news", act_data["alert"])
 
         # 4. POST /api/ipo/subscribe
         sub_phone = "+254722000111"
@@ -179,6 +253,26 @@ class TestIPOAlerts(unittest.TestCase):
         sim_data = r_sim.json()
         self.assertEqual(sim_data["status"], "simulation_dispatched")
         self.assertIn("National Oil Corporation IPO", sim_data["message"])
+
+    def test_news_feed_sources_listing_articles(self):
+        """Verify that /api/news contains latest news articles covering new listings with is_ipo=True and includes Kenyan Wall Street."""
+        from data.fetcher import NEWS_FEEDS
+        feed_sources = [f["source"] for f in NEWS_FEEDS]
+        self.assertIn("The Kenyan Wallstreet", feed_sources)
+
+        r = client.get("/api/news")
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertGreater(data["count"], 0)
+        ipo_articles = [a for a in data["articles"] if a.get("is_ipo")]
+        self.assertGreaterEqual(len(ipo_articles), 1)
+        kpc_article = next((a for a in ipo_articles if "KPC" in a.get("related_tickers", []) or "Kenya Pipeline" in a["title"]), None)
+        self.assertIsNotNone(kpc_article)
+
+        # Verify Kenyan Wall Street is present in articles
+        kws_articles = [a for a in data["articles"] if a.get("source") == "The Kenyan Wallstreet"]
+        self.assertGreaterEqual(len(kws_articles), 1)
+        self.assertTrue(any("kenyanwallstreet.com" in a.get("url", "") for a in kws_articles))
 
 
 if __name__ == "__main__":

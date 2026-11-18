@@ -145,6 +145,7 @@ class TestDiversificationApi(unittest.TestCase):
     def tearDown(self):
         app.dependency_overrides.pop(get_db, None)
         Base.metadata.drop_all(bind=engine)
+        engine.dispose()
         try:
             if os.path.exists(TEST_DB_FILE):
                 os.remove(TEST_DB_FILE)

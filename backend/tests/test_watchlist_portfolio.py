@@ -51,6 +51,7 @@ class TestWatchlistPortfolio(unittest.TestCase):
         # Clean up dependency overrides
         app.dependency_overrides.pop(get_db, None)
         Base.metadata.drop_all(bind=engine)
+        engine.dispose()
         # Remove the file if exists
         try:
             if os.path.exists(TEST_DB_FILE):

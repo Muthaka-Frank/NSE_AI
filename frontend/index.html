@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=3" />
+  <link rel="stylesheet" href="css/style.css?v=4" />
   <script src="js/auth.js?v=2"></script>
 </head>
 <body>
@@ -633,6 +633,7 @@
           <button class="period-btn active" id="ipo-tab-all" onclick="filterIpoList('ALL')">All Pipeline (<span id="ipo-count-all">0</span>)</button>
           <button class="period-btn" id="ipo-tab-open" onclick="filterIpoList('OFFER_OPEN')">🟢 Offer Open (<span id="ipo-count-open">0</span>)</button>
           <button class="period-btn" id="ipo-tab-upcoming" onclick="filterIpoList('UPCOMING')">🟣 Upcoming (<span id="ipo-count-upcoming">0</span>)</button>
+          <button class="period-btn" id="ipo-tab-closed" onclick="filterIpoList('OFFER_CLOSED')">🟡 Closed (<span id="ipo-count-closed">0</span>)</button>
         </div>
         <div style="font-size:0.75rem; color:var(--text-muted); display:flex; align-items:center; gap:8px;">
           <span>⚡ Live CMA & NSE Regulatory Sync</span>
@@ -648,9 +649,9 @@
     </div>
   </div>
 
-  <script src="js/api.js?v=6"></script>
+  <script src="js/api.js?v=7"></script>
   <script src="js/chart.js?v=4"></script>
-  <script src="js/app.js?v=19"></script>
+  <script src="js/app.js?v=21"></script>
   <script>
     // Register PWA service worker
     if ("serviceWorker" in navigator) {

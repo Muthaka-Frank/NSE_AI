@@ -525,19 +525,23 @@ function renderNewsFromData(articles) {
   const grid = document.getElementById('news-grid');
   if (!grid) return;
 
-  grid.innerHTML = articles.slice(0, 6).map(a => {
+  grid.innerHTML = articles.slice(0, 8).map(a => {
     const sent = a.sentiment || { label:'NEUTRAL', score_pct:'—' };
+    const isIpo = a.is_ipo || (a.related_tickers && a.related_tickers.some(t => ['KPC', 'CBL', 'ASAD'].includes(t))) || /ipo|initial public offering|listing\b|prospectus|share subscription/i.test(a.title);
     return `
-      <div class="news-card">
+      <div class="news-card ${isIpo ? 'news-card-ipo' : ''}">
         <div class="news-source-row">
-          <span class="news-source">${a.source}</span>
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <span class="news-source">${a.source}</span>
+            ${isIpo ? `<span class="news-ipo-badge" onclick="event.preventDefault(); openIpoModal();" title="Click to view new listing timetable & prospectus">🔔 NEW LISTING</span>` : ''}
+          </div>
           <span class="sentiment-badge ${sent.label}">${sent.label}</span>
         </div>
         <a href="${a.url}" target="_blank" rel="noopener" class="news-title">${a.title}</a>
         <div class="news-meta">
           <span>${formatDate(a.published)}</span>
           <div class="news-tickers">
-            ${(a.related_tickers || []).map(t => `<span class="news-ticker-chip">${t}</span>`).join('')}
+            ${(a.related_tickers || []).map(t => `<span class="news-ticker-chip ${['KPC', 'CBL', 'ASAD'].includes(t) ? 'ipo-ticker' : ''}" ${['KPC', 'CBL', 'ASAD'].includes(t) ? 'onclick="event.stopPropagation(); openIpoModal();" style="cursor:pointer;"' : ''}>${t}</span>`).join('')}
           </div>
         </div>
       </div>
@@ -1588,11 +1592,34 @@ async function loadActiveIpoAlert() {
         const priceStr = a.offer_price ? `KES ${a.offer_price.toFixed(2)}` : (a.offer_price_range || 'Price TBD');
         let countdownStr = '';
         if (a.status === 'OFFER_OPEN') {
-          countdownStr = a.days_to_close !== null ? `⏰ Closes in ${a.days_to_close} days (${a.offer_close_date})` : 'Offer Active';
+          if (a.days_to_close !== null && a.days_to_close >= 0) {
+            countdownStr = a.days_to_close === 0
+              ? `⏰ Closes TODAY (${a.offer_close_date})`
+              : (a.days_to_close === 1
+                ? `⏰ Closes TOMORROW (${a.offer_close_date})`
+                : `⏰ Closes in ${a.days_to_close} days (${a.offer_close_date})`);
+          } else {
+            countdownStr = 'Offer Active';
+          }
+        } else if (a.status === 'UPCOMING') {
+          if (a.days_to_open !== null && a.days_to_open >= 0) {
+            countdownStr = a.days_to_open === 0
+              ? `🚀 Opens TODAY! (${a.offer_open_date})`
+              : (a.days_to_open === 1
+                ? `⏰ Opens in 1 day (Tomorrow, ${a.offer_open_date})`
+                : `⏰ Opens in ${a.days_to_open} days (${a.offer_open_date})`);
+          } else {
+            countdownStr = 'CMA Approved';
+          }
+        } else if (a.status === 'OFFER_CLOSED') {
+          countdownStr = a.listing_date ? `Allotment In Progress · Listing: ${a.listing_date}` : 'Offer Closed';
         } else {
-          countdownStr = a.days_to_open !== null && a.days_to_open > 0 ? `⏰ Opens in ${a.days_to_open} days (${a.offer_open_date})` : 'CMA Approved';
+          countdownStr = a.status.replace('_', ' ');
         }
-        subEl.textContent = `${a.status === 'OFFER_OPEN' ? '🟢 OFFER IS OPEN' : '🟣 UPCOMING'} · Offer: ${priceStr} · ${countdownStr}`;
+        
+        const statusBadge = a.status === 'OFFER_OPEN' ? '🟢 OFFER IS OPEN' : (a.status === 'UPCOMING' ? '🟣 UPCOMING' : '🟡 OFFER CLOSED');
+        const newsTag = a.latest_news?.source ? ` · 📰 Sourced from ${a.latest_news.source}` : '';
+        subEl.textContent = `${statusBadge} · Offer: ${priceStr} · ${countdownStr}${newsTag}`;
       }
       if (banner) banner.style.display = 'flex';
       if (navBtnText) {
@@ -1643,9 +1670,11 @@ async function refreshIpoData() {
       const allCount = document.getElementById('ipo-count-all');
       const openCount = document.getElementById('ipo-count-open');
       const upCount = document.getElementById('ipo-count-upcoming');
+      const closedCount = document.getElementById('ipo-count-closed');
       if (allCount) allCount.textContent = res.stats.total || _ipoPipelineData.length;
       if (openCount) openCount.textContent = res.stats.offer_open_count || 0;
       if (upCount) upCount.textContent = res.stats.upcoming_count || 0;
+      if (closedCount) closedCount.textContent = res.stats.closed_count || 0;
 
       renderIpoPipelineList();
     } else {
@@ -1659,13 +1688,14 @@ async function refreshIpoData() {
 
 function filterIpoList(filter) {
   _activeIpoFilter = filter;
-  ['all', 'open', 'upcoming'].forEach(t => {
+  ['all', 'open', 'upcoming', 'closed'].forEach(t => {
     const el = document.getElementById(`ipo-tab-${t}`);
     if (el) el.classList.remove('active');
   });
   if (filter === 'ALL') document.getElementById('ipo-tab-all')?.classList.add('active');
   if (filter === 'OFFER_OPEN') document.getElementById('ipo-tab-open')?.classList.add('active');
   if (filter === 'UPCOMING') document.getElementById('ipo-tab-upcoming')?.classList.add('active');
+  if (filter === 'OFFER_CLOSED') document.getElementById('ipo-tab-closed')?.classList.add('active');
 
   renderIpoPipelineList();
 }
@@ -1686,8 +1716,16 @@ function renderIpoPipelineList() {
 
   listEl.innerHTML = items.map(ipo => {
     const isOfferOpen = ipo.status === 'OFFER_OPEN';
-    const statusClass = ipo.status;
-    const statusText = isOfferOpen ? '🟢 OFFER IS OPEN FOR SUBSCRIPTION' : (ipo.status === 'UPCOMING' ? '🟣 CMA APPROVED / UPCOMING' : ipo.status);
+    const isUpcoming = ipo.status === 'UPCOMING';
+    const isOfferClosed = ipo.status === 'OFFER_CLOSED';
+    const isListed = ipo.status === 'LISTED';
+
+    let statusText = ipo.status;
+    if (isOfferOpen) statusText = '🟢 OFFER IS OPEN FOR SUBSCRIPTION';
+    else if (isUpcoming) statusText = '🟣 CMA APPROVED / UPCOMING';
+    else if (isOfferClosed) statusText = '🟡 OFFER CLOSED / ALLOTMENT PENDING';
+    else if (isListed) statusText = '⚪ LISTED & TRADING';
+
     const priceDisplay = ipo.offer_price ? `KES ${ipo.offer_price.toFixed(2)}` : (ipo.offer_price_range || 'To Be Announced');
     const minInvestment = ipo.offer_price && ipo.min_application_shares 
       ? `KES ${(ipo.offer_price * ipo.min_application_shares).toLocaleString('en-KE', {minimumFractionDigits: 2})}` 
@@ -1696,8 +1734,9 @@ function renderIpoPipelineList() {
     // Step tracker
     const step1Class = 'completed'; // Announcement
     const step2Class = ipo.cma_approval ? 'completed' : 'active'; // CMA Approval
-    const step3Class = isOfferOpen ? 'active' : (ipo.status === 'UPCOMING' ? '' : 'completed'); // Offer Open
-    const step4Class = ipo.status === 'LISTED' ? 'completed' : ''; // Listing day
+    const step3Class = isOfferOpen ? 'active' : (isUpcoming ? '' : 'completed'); // Offer Open
+    const step4Class = isOfferClosed ? 'completed' : (isListed ? 'completed' : (isOfferOpen ? 'active' : '')); // Offer Closes
+    const step5Class = isListed ? 'completed' : (isOfferClosed ? 'active' : ''); // First Trading Day
 
     const verdictColor = ipo.ai_verdict === 'ATTRACTIVE' ? '#00e676' : (ipo.ai_verdict === 'FAIR_VALUE' ? '#ffd700' : '#ff4d6d');
 
@@ -1714,7 +1753,7 @@ function renderIpoPipelineList() {
               <span style="font-size:0.75rem; color:var(--text-muted);">${ipo.sector} · ${ipo.listing_type}</span>
             </div>
             <div style="margin-top:4px;">
-              <span class="ipo-status-badge ${statusClass}">${statusText}</span>
+              <span class="ipo-status-badge ${ipo.status}">${statusText}</span>
             </div>
           </div>
           <div style="text-align:right;">
@@ -1740,17 +1779,40 @@ function renderIpoPipelineList() {
             <div class="ipo-step-label">Offer Opens</div>
             <div class="ipo-step-date">${ipo.offer_open_date || 'Pending'}</div>
           </div>
-          <div class="ipo-step">
+          <div class="ipo-step ${step4Class}">
             <div class="ipo-step-node">4</div>
             <div class="ipo-step-label">Offer Closes</div>
             <div class="ipo-step-date">${ipo.offer_close_date || 'Pending'}</div>
           </div>
-          <div class="ipo-step ${step4Class}">
+          <div class="ipo-step ${step5Class}">
             <div class="ipo-step-node">5</div>
             <div class="ipo-step-label">First Trading Day</div>
             <div class="ipo-step-date">${ipo.listing_date || 'Pending'}</div>
           </div>
         </div>
+
+        <!-- Sourced from Latest Financial News -->
+        ${ipo.latest_news ? `
+        <div class="ipo-news-source-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; margin-bottom:5px;">
+            <span class="ipo-news-pill">📰 SOURCED FROM LATEST NEWS</span>
+            <span style="font-size:0.72rem; color:var(--text-muted); font-family:var(--font-mono);">
+              ${ipo.latest_news.source} · ${formatDate(ipo.latest_news.published)}
+            </span>
+          </div>
+          <div style="font-size:0.9rem; font-weight:700; color:#fff; line-height:1.35; margin-bottom:4px;">
+            ${ipo.latest_news.title}
+          </div>
+          <div style="font-size:0.76rem; color:var(--text-secondary); line-height:1.45; margin-bottom:6px;">
+            ${ipo.latest_news.summary}
+          </div>
+          ${ipo.latest_news.url && ipo.latest_news.url !== '#' ? `
+            <a href="${ipo.latest_news.url}" target="_blank" rel="noopener" style="font-size:0.74rem; color:var(--accent); text-decoration:none; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
+              Read Full Article on ${ipo.latest_news.source} ↗
+            </a>
+          ` : ''}
+        </div>
+        ` : ''}
 
         <!-- Offering Specs KPI Grid -->
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:8px; background:rgba(0,0,0,0.25); padding:0.7rem; border-radius:6px; border:1px solid rgba(255,255,255,0.03);">

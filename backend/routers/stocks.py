@@ -231,3 +231,44 @@ def stock_prediction(ticker: str):
         "disclaimer":      "AI signals are informational only. Not financial advice.",
     }
 
+
+@router.post("/refresh")
+def force_refresh_stocks():
+    """Forces an immediate live scrape from Kwayisi and clears all price caches."""
+    from data.nse_scraper import clear_cache as clear_scraper_cache
+    from data.fetcher import clear_cache as clear_fetcher_cache, get_all_stocks
+    clear_scraper_cache()
+    clear_fetcher_cache()
+    stocks = get_all_stocks()
+    return {
+        "status": "refreshed",
+        "total_stocks": len(stocks),
+        "message": "Successfully refreshed live prices from Kwayisi.",
+    }
+
+
+@router.get("/gaps/diagnosis")
+def diagnose_stock_gaps():
+    """Diagnoses missing trading days and affected stock counters in the database."""
+    from data.backfill_gaps import diagnose_gaps
+    return diagnose_gaps()
+
+
+@router.post("/gaps/backfill")
+def trigger_gap_backfill(mode: str = "auto"):
+    """
+    Triggers historical database gap healing.
+    mode options:
+      - 'auto': Scrapes Kwayisi and forward-fills remaining untraded counters.
+      - 'scrape': Only scrapes Kwayisi.
+      - 'forward_fill': Forward-fills missing sessions using last known closing prices.
+    """
+    from data.backfill_gaps import auto_heal_database_gaps, backfill_from_kwayisi, forward_fill_gaps
+    if mode == "scrape":
+        return backfill_from_kwayisi()
+    elif mode == "forward_fill":
+        return forward_fill_gaps()
+    else:
+        return auto_heal_database_gaps()
+
+

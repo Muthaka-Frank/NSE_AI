@@ -32,10 +32,12 @@ class Settings:
     # Google OAuth
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
 
-    # Live Scraper (afx.kwayisi.org)
+    # Live Scraper (afx.kwayisi.org) & Anti-Block Settings
     KWAYISI_URL: str = os.getenv("KWAYISI_URL", "https://afx.kwayisi.org/nse/")
+    SCRAPER_PROXY: str = os.getenv("SCRAPER_PROXY", "")  # e.g. socks5h://127.0.0.1:9050 or http://proxy:port
     SCRAPER_CACHE_TTL: int = int(os.getenv("SCRAPER_CACHE_TTL", "600"))  # 10 minutes
-    SCRAPER_CIRCUIT_BREAKER_SECS: int = int(os.getenv("SCRAPER_CIRCUIT_BREAKER_SECS", "300"))  # 5 minutes
+    SCRAPER_CIRCUIT_BREAKER_SECS: int = int(os.getenv("SCRAPER_CIRCUIT_BREAKER_SECS", "900"))  # 15 minutes
+    SCRAPER_MIN_DELAY_SECS: float = float(os.getenv("SCRAPER_MIN_DELAY_SECS", "3.0"))
 
     # Market Trading Hours (EAT)
     MARKET_OPEN_HOUR: int = 8
